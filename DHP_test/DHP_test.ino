@@ -4,8 +4,8 @@
  http://www.mouser.com/ds/2/302/MP3V5004G-783434.pdf
  */
 
-const int analogVMinus = A1;  // Analog input pin that the potentiometer is attached to
-const int analogVPlus = A0; // Analog output pin that the LED is attached to
+const int analogVMinus = A1;
+const int analogVPlus = A0;
 
 // Initial values of pins (will be overwrited immediately)
 int vPlusValue = 0;
