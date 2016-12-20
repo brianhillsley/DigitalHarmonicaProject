@@ -3,8 +3,7 @@ Test #2: Both speaker and 1 sensor are in use!
  */
 #include "pitches.h"
 
-const int analogVMinus = A1;  // Analog input pin that the potentiometer is attached to
-const int analogVPlus = A0; // Analog output pin that the LED is attached to
+const int analogVPlus = A0; // Analog Input Pin & Sensor output pin
 const int spkrOutPin = 22;
 
 // Initial values of pins (will be overwrited immediately)
