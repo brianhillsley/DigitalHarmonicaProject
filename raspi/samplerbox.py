@@ -1,4 +1,4 @@
-# Some code from the SamplerBox code made by josephernest
+# Code adapted from the SamplerBox code by josephernest
 # Changes were made to make the code specialized for the DHP project
 
 #########################################
@@ -246,13 +246,13 @@ FADEOUT = numpy.power(FADEOUT, 6)
 FADEOUT = numpy.append(FADEOUT, numpy.zeros(FADEOUTLENGTH, numpy.float32)).astype(numpy.float32)
 SPEED = numpy.power(2, numpy.arange(0.0, 84.0)/12).astype(numpy.float32)
 
-# BRH-STUB:Comment: Initializing variables for note information
+# DHP-STUB:Comment: Initializing variables for note information
 samples = {}
 playingnotes = {}
 sustainplayingnotes = []
 sustain = False
 playingsounds = []
-# BRH-STUB:Alterable: Changing the number of default global volume
+# DHP-STUB:Alterable: Changing the number of default global volume
 globalvolume = 10 ** (0/20)  # -0dB
 globaltranspose = 0
 
@@ -277,7 +277,7 @@ def ActuallyLoad():
     global globalvolume, globaltranspose
     playingsounds = []
     samples = {}
-    # BRH-STUB: Alterable: Consider changing default global volume here as well.
+    # DHP-STUB: Alterable: Consider changing default global volume here as well.
     globalvolume = 10 ** (0/20)  # 0dB
     globaltranspose = 0
 
