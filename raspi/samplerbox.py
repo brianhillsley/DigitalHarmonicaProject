@@ -1,14 +1,15 @@
+# Some code from the SamplerBox code made by josephernest
+# Changes were made to make the code specialized for the DHP project
+
 #########################################
 # LOCAL
 # CONFIG
 #########################################
 
-AUDIO_DEVICE_ID = 2                     # change this number to use another soundcard
-SAMPLES_DIR = "."                       # The root directory containing the sample-sets. Example: "/media/" to look for samples on a USB stick / SD card
-USE_SERIALPORT_MIDI = False             # Set to True to enable MIDI IN via SerialPort (e.g. RaspberryPi's GPIO UART pins)
-USE_I2C_7SEGMENTDISPLAY = False         # Set to True to use a 7-segment display via I2C
-USE_BUTTONS = False                     # Set to True to use momentary buttons (connected to RaspberryPi's GPIO pins) to change preset
-MAX_POLYPHONY = 80                    # This can be set higher, but 80 is a safe value
+AUDIO_DEVICE_ID = 2     # change this number to use another soundcard
+SAMPLES_DIR = "."       # The root directory containing the sample-sets. Example: "/media/" to look for samples on a USB stick / SD card
+USE_BUTTONS = False     # Set to True to use momentary buttons (connected to RaspberryPi's GPIO pins) to change preset
+MAX_POLYPHONY = 80      # This can be set higher, but 80 is a safe value
 NOTES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
 
 
@@ -245,12 +246,14 @@ FADEOUT = numpy.power(FADEOUT, 6)
 FADEOUT = numpy.append(FADEOUT, numpy.zeros(FADEOUTLENGTH, numpy.float32)).astype(numpy.float32)
 SPEED = numpy.power(2, numpy.arange(0.0, 84.0)/12).astype(numpy.float32)
 
+# BRH-STUB:Comment: Initializing variables for note information
 samples = {}
 playingnotes = {}
 sustainplayingnotes = []
 sustain = False
 playingsounds = []
-globalvolume = 10 ** (-6/20)  # -6dB default global volume
+# BRH-STUB:Alterable: Changing the number of default global volume
+globalvolume = 10 ** (0/20)  # -6dB default global volume
 globaltranspose = 0
 
 def LoadSamples():
