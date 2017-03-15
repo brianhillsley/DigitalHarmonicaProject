@@ -1,5 +1,5 @@
 # DigitalHarmonicaProject (DHP)
-===============================
+
 The goal: Build a digital harmonica (DH)
 
 Reason: 
@@ -16,16 +16,16 @@ Key Specifications:
 5. DH shall weigh less than a pound
 
 Tools and Technologies:
-Raspberry Pi
-SamplerBox
-Python
-Adafruit MPC3008 ADC
-Pressure Sensors
-Amplifier circuit
+- Raspberry Pi
+- SamplerBox
+- Python
+- Adafruit MPC3008 ADC
+- Pressure Sensors
+- Amplifier circuit
 
 
 Computer Engineering Capstone Team Senior Project
-Brian Hillsley
-Kenneth Bohr
-Emanuell
-Lucas Herr
+- Brian Hillsley
+- Kenneth Bohr
+- Emanuell
+- Lucas Herr
