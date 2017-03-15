@@ -254,7 +254,7 @@ playingnotes = {}
 sustainplayingnotes = []
 sustain = False
 playingsounds = []
-# DHP-STUB:Alterable: Changing the number of default global volume
+# DHP-STUB: Alterable: Changing the number of default global volume
 globalvolume = 10 ** (0/20)  # -0dB
 globaltranspose = 0
 
@@ -281,6 +281,7 @@ def ActuallyLoad():
     samples = {}
     # DHP-STUB: Alterable: Consider changing default global volume here as well.
     globalvolume = 10 ** (0/20)  # 0dB
+    # DHP-STUB: Alterable: When we want to play in one key higher, we can increment globaltranpase by 1, or 2, or ... 12 would be a shift of a whole octave increase for each blow hole.
     globaltranspose = 0
 
     samplesdir = SAMPLES_DIR if os.listdir(SAMPLES_DIR) else '.'      # use current folder (containing 0 Saw) if no user media containing samples has been found
@@ -290,7 +291,6 @@ def ActuallyLoad():
         dirname = os.path.join(samplesdir, basename)
     if not basename:
         print 'Preset empty: %s' % preset
-        display("E%03d" % preset)
         return
     print 'Preset loading: %s (%s)' % (preset, basename)
     display("L%03d" % preset)
@@ -411,9 +411,6 @@ if USE_BUTTONS:
     ButtonsThread = threading.Thread(target=Buttons)
     ButtonsThread.daemon = True
     ButtonsThread.start()
-
-def display(s):
-        pass
 
 #########################################
 # MIDI IN via SERIAL PORT
