@@ -253,7 +253,7 @@ sustainplayingnotes = []
 sustain = False
 playingsounds = []
 # BRH-STUB:Alterable: Changing the number of default global volume
-globalvolume = 10 ** (0/20)  # -6dB default global volume
+globalvolume = 10 ** (0/20)  # -0dB
 globaltranspose = 0
 
 def LoadSamples():
@@ -277,7 +277,8 @@ def ActuallyLoad():
     global globalvolume, globaltranspose
     playingsounds = []
     samples = {}
-    globalvolume = 10 ** (-6/20)  # -6dB default global volume
+    # BRH-STUB: Alterable: Consider changing default global volume here as well.
+    globalvolume = 10 ** (0/20)  # 0dB
     globaltranspose = 0
 
     samplesdir = SAMPLES_DIR if os.listdir(SAMPLES_DIR) else '.'      # use current folder (containing 0 Saw) if no user media containing samples has been found
