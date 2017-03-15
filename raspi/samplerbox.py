@@ -2,8 +2,7 @@
 # Changes were made to make the code specialized for the DHP project
 
 #########################################
-# LOCAL
-# CONFIG
+# LOCAL CONFIG
 #########################################
 
 AUDIO_DEVICE_ID = 2     # change this number to use another soundcard
@@ -14,12 +13,13 @@ NOTES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
 
 
 #########################################
-# IMPORT
-# MODULES
+# IMPORT MODULES
 #########################################
 
 import wave
 import time
+# DHP-STUB: Comment: NumPy is scientific computing package
+# NumPy allows for N-dimensional arrays and C integration
 import numpy
 import os
 import re
@@ -30,7 +30,9 @@ import struct
 import rtmidi_python as rtmidi
 import samplerbox_audio
 
-# Import SPI library (for hardware SPI) and MCP3008 library.
+# DHP-STUB: Comment: Adafruit_MCP3008 is the 10-bit 8-channel ADC we are using to access the air pressure sensors
+# These imports are needed to allow us to use the ADC in a programmatic way
+# DHP-STUB: comment: Import SPI library (for hardware SPI) and MCP3008 library.
 import Adafruit_GPIO.SPI as SPI
 import Adafruit_MCP3008
 
@@ -46,7 +48,8 @@ mcp1 = Adafruit_MCP3008.MCP3008(spi=SPI.SpiDev(SPI_PORT, SPI_DEVICE1))
 # SLIGHT MODIFICATION OF PYTHON'S WAVE MODULE
 # TO READ CUE MARKERS & LOOP MARKERS
 #########################################
-
+# DHP-STUB: Comment: Best to leave this part alone until absolutely necessary.
+# This is where a lot of the critical functionality in sampling goes on.
 class waveread(wave.Wave_read):
 
     def initfp(self, file):
@@ -102,7 +105,6 @@ class waveread(wave.Wave_read):
 
 #########################################
 # MIXER CLASSES
-#
 #########################################
 
 class PlayingSound:
