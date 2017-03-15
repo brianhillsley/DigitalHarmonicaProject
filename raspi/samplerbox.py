@@ -44,6 +44,19 @@ mcp0 = Adafruit_MCP3008.MCP3008(spi=SPI.SpiDev(SPI_PORT, SPI_DEVICE0))
 mcp1 = Adafruit_MCP3008.MCP3008(spi=SPI.SpiDev(SPI_PORT, SPI_DEVICE1))
 
 
+# DHP-STUB: Comment: Our own tuning class, to represent tunings for the harmonica
+class HarmonicaTuning():
+    # Construct a harmonica tuning based on the blow notes, and draw notes
+    
+    def __init__(self, blowNotes, drawNotes):
+        self.blowNotes = blowNotes
+        self.drawNotes = drawNotes
+
+    def __str__(self):
+        return "Blow Notes: " + self.blowNotes
+
+        
+
 #########################################
 # SLIGHT MODIFICATION OF PYTHON'S WAVE MODULE
 # TO READ CUE MARKERS & LOOP MARKERS
@@ -51,7 +64,7 @@ mcp1 = Adafruit_MCP3008.MCP3008(spi=SPI.SpiDev(SPI_PORT, SPI_DEVICE1))
 # DHP-STUB: Comment: Best to leave this part alone until absolutely necessary.
 # This is where a lot of the critical functionality in sampling goes on.
 class waveread(wave.Wave_read):
-
+    
     def initfp(self, file):
         self._convert = None
         self._soundpos = 0
@@ -354,15 +367,12 @@ def ActuallyLoad():
                     pass
     if len(initial_keys) > 0:
         print 'Preset loaded: ' + str(preset)
-        display("%04d" % preset)
     else:
         print 'Preset empty: ' + str(preset)
-        display("E%03d" % preset)
-
+    
 
 #########################################
 # OPEN AUDIO DEVICE
-#
 #########################################
 
 try:
@@ -412,16 +422,7 @@ if USE_BUTTONS:
     ButtonsThread.start()
 
 #########################################
-# MIDI IN via SERIAL PORT
-#
-#########################################
-
-
-
-
-#########################################
 # LOAD FIRST SOUNDBANK
-#
 #########################################
 
 preset = 0
@@ -429,8 +430,7 @@ LoadSamples()
 
 
 #########################################
-# MIDI DEVICES DETECTION
-# MAIN LOOP
+# MIDI DEVICES DETECTION (MAIN LOOP)
 #########################################
 
 midi_in = [rtmidi.MidiIn()]
