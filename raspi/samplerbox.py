@@ -445,28 +445,34 @@ while True:
                 
     # Print the ADC values.	
     print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4}'.format(*values))
-    # create the midi sound
-    message = [128,63,127]
 
-    blowThresh = 850
-    drawThresh = 500
-    if values[ch] > blowThresh:
-        message = [144,63,127]
-        MidiCallback(message, None)
-        message = [128,62,127]
-        MidiCallback(message, None)
+    
+    blowThresh = 620
+    drawThresh = 480
 
-    elif values[ch] < drawThresh:
-         message = [144,62,127]
-         MidiCallback(message, None)
-         message = [128,63,127]
-         MidiCallback(message, None)
+    blowNotes = [63,61,59,57,55]
+    drawNotes = [62,60,58,56,54]
+    # For every channel determine whether the channel is making sound and at what velocity
+    for ch in range(5):
+        drawNote = drawNotes[ch]
+        blowNote = blowNotes[ch]
         
-    else:
-         message = [128,63,127]
-         MidiCallback(message, None)
-         message = [128,62,127]
-         MidiCallback(message, None)
+        if values[ch] > blowThresh: # BLOW NOTE TRIGGERED
+            amount = values[ch]-blowThresh
+            message = [144,blowNote,int((127.0*amount)/127.0)]
+            MidiCallback(message, None)
+        elif values[ch] < drawThresh: # DRAW NOTE TRIGGERED
+            amount = drawThresh - values[ch]
+            message = [144,drawNote,int((127.0*amount)/127.0)]
+            MidiCallback(message, None)
+        else:
+            # Turn off blow and draw notes for this channel
+            message = [128,blowNote,127]
+            MidiCallback(message, None)
+            message = [128,drawNote,127]
+            MidiCallback(message, None)
+    
+    
     
     for port in midi_in[0].ports:
         if port not in previous and 'Midi Through' not in port:
