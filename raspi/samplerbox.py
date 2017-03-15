@@ -293,7 +293,6 @@ def ActuallyLoad():
         print 'Preset empty: %s' % preset
         return
     print 'Preset loading: %s (%s)' % (preset, basename)
-    display("L%03d" % preset)
 
     definitionfname = os.path.join(dirname, "definition.txt")
     if os.path.isfile(definitionfname):
@@ -436,34 +435,28 @@ LoadSamples()
 
 midi_in = [rtmidi.MidiIn()]
 previous = []
-print('Reading MCP3008 values, press Ctrl-C to quit...')
-print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4} |'.format(*range(10)))
-print('-' * 64)
 while True:
     # Read all the ADC channel values in a list.
-    values = [0]*8
     values = [0]*10
 
-    for i in range(8):
-	for i in range(5):
-        # The read_adc function will get the value of the specified channel (0-7).
-		values[i] = mcp0.read_adc(i)
-
-	for j in range(5):
-		values[j+5] = mcp1.read_adc(j)
-
+    for ch in range(5): # each channel of ADC #1
+        # (we have 2 ADCs and use 5 channels from each to read the 10 sensors)
+        values[ch] = mcp0.read_adc(ch)
+                
     # Print the ADC values.	
-    print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} |'.format(*values))
+    print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4}'.format(*values))
     # create the midi sound
     message = [128,63,127]
-	
-    if values[0] > 550:
+
+    blowThresh = 850
+    drawThresh = 500
+    if values[ch] > blowThresh:
         message = [144,63,127]
         MidiCallback(message, None)
         message = [128,62,127]
         MidiCallback(message, None)
 
-    elif values[0] < 505:
+    elif values[ch] < drawThresh:
          message = [144,62,127]
          MidiCallback(message, None)
          message = [128,63,127]
