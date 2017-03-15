@@ -1,5 +1,5 @@
 # DigitalHarmonicaProject (DHP)
-
+===============================
 The goal: Build a digital harmonica (DH)
 
 Reason: 
