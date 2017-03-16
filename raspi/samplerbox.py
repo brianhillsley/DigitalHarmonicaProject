@@ -11,11 +11,9 @@ USE_BUTTONS = False     # Set to True to use momentary buttons (connected to Ras
 MAX_POLYPHONY = 80      # This can be set higher, but 80 is a safe value
 NOTES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
 
-
 #########################################
 # IMPORT MODULES
 #########################################
-
 import wave
 import time
 # DHP-STUB: Comment: NumPy is scientific computing package
@@ -53,9 +51,8 @@ class HarmonicaTuning():
         self.drawNotes = drawNotes
 
     def __str__(self):
-        return "Blow Notes: " + self.blowNotes
-
-        
+        return "Blow Notes: " + self.blowNotes + "\nDraw Notes: " + self.drawNotes
+    
 
 #########################################
 # SLIGHT MODIFICATION OF PYTHON'S WAVE MODULE
@@ -174,7 +171,6 @@ class Sound:
 
 #########################################
 # AUDIO AND MIDI CALLBACKS
-#
 #########################################
 
 def AudioCallback(outdata, frame_count, time_info, status):
@@ -250,7 +246,6 @@ def MidiCallback(message, time_stamp):
 
 #########################################
 # LOAD SAMPLES
-#
 #########################################
 
 LoadingThread = None
@@ -374,7 +369,6 @@ def ActuallyLoad():
 #########################################
 # OPEN AUDIO DEVICE
 #########################################
-
 try:
     sd = sounddevice.OutputStream(device=AUDIO_DEVICE_ID, blocksize=512, samplerate=44100, channels=2, dtype='int16', callback=AudioCallback)
     sd.start()
@@ -383,12 +377,9 @@ except:
     print 'Invalid audio device #%i' % AUDIO_DEVICE_ID
     exit(1)
 
-
 #########################################
 # BUTTONS THREAD (RASPBERRY PI GPIO)
-#
 #########################################
-
 if USE_BUTTONS:
     import RPi.GPIO as GPIO
 
@@ -424,7 +415,6 @@ if USE_BUTTONS:
 #########################################
 # LOAD FIRST SOUNDBANK
 #########################################
-
 preset = 0
 LoadSamples()
 
@@ -432,7 +422,6 @@ LoadSamples()
 #########################################
 # MIDI DEVICES DETECTION (MAIN LOOP)
 #########################################
-
 midi_in = [rtmidi.MidiIn()]
 previous = []
 while True:
@@ -446,9 +435,11 @@ while True:
     # Print the ADC values.	
     print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4}'.format(*values))
 
-    
-    blowThresh = 620
-    drawThresh = 480
+    # DHP: Alterable: We need to select proper blow and draw thresholds based on resting value read by air pressure sensors. They all should be values around 512+-1.
+    toleranceToNoise = 80
+    restingValue = 512
+    blowThresh = restingValue + toleranceToNoise
+    drawThresh = restingValue - toleranceToNoise
 
     blowNotes = [63,61,59,57,55]
     drawNotes = [62,60,58,56,54]
@@ -470,8 +461,7 @@ while True:
             message = [128,blowNote,127]
             MidiCallback(message, None)
             message = [128,drawNote,127]
-            MidiCallback(message, None)
-    
+            MidiCallback(message, None)    
     
     
     for port in midi_in[0].ports:
