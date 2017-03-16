@@ -238,7 +238,7 @@ def MidiCallback(message, time_stamp):
     elif (messagetype == 11) and (note == 64) and (velocity >= 64):  # sustain pedal on
         sustain = True
 
-        ########## DHP Addition
+        ########## DHP-STUB: Addition
 #    elif (messagetype == 11) and (note == 7): #channel volume change
 #        sustain = True
         
@@ -256,7 +256,7 @@ FADEOUT = numpy.power(FADEOUT, 6)
 FADEOUT = numpy.append(FADEOUT, numpy.zeros(FADEOUTLENGTH, numpy.float32)).astype(numpy.float32)
 SPEED = numpy.power(2, numpy.arange(0.0, 84.0)/12).astype(numpy.float32)
 
-# DHP-STUB:Comment: Initializing variables for note information
+# DHP-STUB: Comment: Initializing variables for note information
 samples = {}
 playingnotes = {}
 sustainplayingnotes = []
@@ -435,7 +435,7 @@ while True:
     # Print the ADC values.	
     print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4}'.format(*values))
 
-    # DHP: Alterable: We need to select proper blow and draw thresholds based on resting value read by air pressure sensors. They all should be values around 512+-1.
+    # DHP-STUB: Alterable: We need to select proper blow and draw thresholds based on resting value read by air pressure sensors. They all should be values around 512+-1.
     toleranceToNoise = 80
     restingValue = 512
     blowThresh = restingValue + toleranceToNoise
