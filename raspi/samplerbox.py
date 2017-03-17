@@ -1,3 +1,4 @@
+from __future__ import division
 # Code adapted from the SamplerBox code by josephernest
 # Changes were made to make the code specialized for the DHP project
 
@@ -424,6 +425,7 @@ LoadSamples()
 #########################################
 midi_in = [rtmidi.MidiIn()]
 previous = []
+# DHP-STUB: Comment: This is the infinite loop where all the magic happens!
 while True:
     # Read all the ADC channel values in a list.
     values = [0]*10
@@ -441,20 +443,21 @@ while True:
     blowThresh = restingValue + toleranceToNoise
     drawThresh = restingValue - toleranceToNoise
 
+    activeChannels = [1, 2] # Which sensors are hooked up and should be read from. Others will be ignored
     blowNotes = [63,61,59,57,55]
     drawNotes = [62,60,58,56,54]
     # For every channel determine whether the channel is making sound and at what velocity
-    for ch in range(5):
+    for ch in activeChannels:
         drawNote = drawNotes[ch]
         blowNote = blowNotes[ch]
         
         if values[ch] > blowThresh: # BLOW NOTE TRIGGERED
-            amount = values[ch]-blowThresh
-            message = [144,blowNote,int((127.0*amount)/127.0)]
+            amount = (values[ch]-blowThresh)/(512.0 - toleranceToNoise)
+            message = [144,blowNote,int(127.0*amount)]
             MidiCallback(message, None)
         elif values[ch] < drawThresh: # DRAW NOTE TRIGGERED
-            amount = drawThresh - values[ch]
-            message = [144,drawNote,int((127.0*amount)/127.0)]
+            amount = (drawThresh - values[ch])/(512.0 - toleranceToNoise)
+            message = [144,drawNote,int(127.0*amount)]
             MidiCallback(message, None)
         else:
             # Turn off blow and draw notes for this channel
