@@ -1,0 +1,40 @@
+|    0 |  544 |  525 |    1 |    0 |    0 |    0 |    0 |    0 |    0
+Status: on ;;; Note: 62 ;;; velocity: 432
+Status: off ;;; Note: 61 ;;; velocity: 127
+Status: off ;;; Note: 60 ;;; velocity: 127
+Status: off ;;; Note: 59 ;;; velocity: 127
+Status: off ;;; Note: 58 ;;; velocity: 127
+Status: on ;;; Note: 56 ;;; velocity: 431
+Status: on ;;; Note: 54 ;;; velocity: 432
+|    0 |  544 |  525 |    1 |    0 |    0 |    0 |    0 |    0 |    0
+Status: on ;;; Note: 62 ;;; velocity: 432
+Status: off ;;; Note: 61 ;;; velocity: 127
+Status: off ;;; Note: 60 ;;; velocity: 127
+Status: off ;;; Note: 59 ;;; velocity: 127
+Status: off ;;; Note: 58 ;;; velocity: 127
+Status: on ;;; Note: 56 ;;; velocity: 431
+Status: on ;;; Note: 54 ;;; velocity: 432
+|    0 |  544 |  525 |    1 |    1 |    0 |    0 |    0 |    0 |    0
+Status: on ;;; Note: 62 ;;; velocity: 432
+Status: off ;;; Note: 61 ;;; velocity: 127
+Status: off ;;; Note: 60 ;;; velocity: 127
+Status: off ;;; Note: 59 ;;; velocity: 127
+Status: off ;;; Note: 58 ;;; velocity: 127
+Status: on ;;; Note: 56 ;;; velocity: 431
+Status: on ;;; Note: 54 ;;; velocity: 431
+|    0 |  544 |  525 |    1 |    1 |    0 |    0 |    0 |    0 |    0
+Status: on ;;; Note: 62 ;;; velocity: 432
+Status: off ;;; Note: 61 ;;; velocity: 127
+Status: off ;;; Note: 60 ;;; velocity: 127
+Status: off ;;; Note: 59 ;;; velocity: 127
+Status: off ;;; Note: 58 ;;; velocity: 127
+Status: on ;;; Note: 56 ;;; velocity: 431
+Status: on ;;; Note: 54 ;;; velocity: 431
+|    1 |  544 |  524 |    2 |    2 |    0 |    0 |    0 |    0 |    0
+Status: on ;;; Note: 62 ;;; velocity: 431
+Status: off ;;; Note: 61 ;;; velocity: 127
+Status: off ;;; Note: 60 ;;; velocity: 127
+Status: off ;;; Note: 59 ;;; velocity: 127
+Status: off ;;; Note: 58 ;;; velocity: 127
+Status: on ;;; Note: 56 ;;; velocity: 430
+Status: on ;;; Note: 54 ;;; velocity: 430
