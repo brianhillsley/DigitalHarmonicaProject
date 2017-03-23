@@ -5,16 +5,19 @@ from __future__ import division
 #########################################
 # LOCAL CONFIG
 #########################################
-
-AUDIO_DEVICE_ID = 2     # change this number to use another soundcard
-SAMPLES_DIR = "."       # The root directory containing the sample-sets. Example: "/media/" to look for samples on a USB stick / SD card
+AUDIO_DEVICE_ID = 2
+SAMPLES_DIR = "."
 USE_BUTTONS = False     # Set to True to use momentary buttons (connected to RaspberryPi's GPIO pins) to change preset
-MAX_POLYPHONY = 80      # This can be set higher, but 80 is a safe value
+
+# DHP-STUB: Comment: Keeping max number of voices low, will prevent chaotic sounds to a degree (especially if velocity isn't being handled correctly).
+MAX_NUM_VOICES = 10
+
 NOTES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
 
 #########################################
 # IMPORT MODULES
 #########################################
+# DHP-STUB: Comment: wave is a python library that is used for interacting with WAV files. 
 import wave
 import time
 # DHP-STUB: Comment: NumPy is scientific computing package
@@ -202,9 +205,9 @@ def MidiCallback(message, time_stamp):
     velocity = message[2] if len(message) > 2 else None
 
     m = ""
-    if (message[0] == 144):
+    if (message[0] == 144): # 144 is MIDI-ON 
         m = "on"
-    elif (message[0] == 128):
+    elif (message[0] == 128): # 128 is MIDI-OFF
         m = "off"
     else:
         m = "I DON'T KNOW!"
