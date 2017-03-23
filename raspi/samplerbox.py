@@ -62,50 +62,73 @@ class HarmonicaTuning():
 # SLIGHT MODIFICATION OF PYTHON'S WAVE MODULE
 # TO READ CUE MARKERS & LOOP MARKERS
 #########################################
-# DHP-STUB: Comment: Best to leave this part alone until absolutely necessary.
-# This is where a lot of the critical functionality in sampling goes on.
+# DHP-STUB: Comment: Original source code for the wave was copied and pasted with very little modification. This code is well explained in the following resources
+# https://docs.python.org/2/library/wave.html
+# https://hg.python.org/cpython/file/2.7/Lib/wave.py
+
+# DHP-STUB: Comment: "The class waveread extends the class wave.Wave_read"
 class waveread(wave.Wave_read):
     
     def initfp(self, file):
+        # DHP-STUB: Comment: Intialize a handful of waveread's member variables
         self._convert = None
         self._soundpos = 0
         self._cue = []
         self._loops = []
         self._ieee = False
         self._file = Chunk(file, bigendian=0)
+
+        # DHP-STUB: Comment: Check to ensure the waveread 
         if self._file.getname() != 'RIFF':
             raise Error, 'file does not start with RIFF id'
         if self._file.read(4) != 'WAVE':
             raise Error, 'not a WAVE file'
+
+        # DHP-STUB: Comment: More Initializations for waveread's member variables
         self._fmt_chunk_read = 0
         self._data_chunk = None
+
+        # DHP-STUB: Comment: Reads all chunks of data in the WAVE file
+        # DHP-STUB: Reference: docs.python.org/2/library/chunk.html
+        # This while-loop ends when the end of file is hit.
         while 1:
             self._data_seek_needed = 1
             try:
                 chunk = Chunk(self._file, bigendian=0)
             except EOFError:
-                break
+                break # The only exit point for this while loop EOF
             chunkname = chunk.getname()
             if chunkname == 'fmt ':
                 self._read_fmt_chunk(chunk)
                 self._fmt_chunk_read = 1
-            elif chunkname == 'data':
+            elif chunkname == 'data': 
+                # DHP-STUB: Comment: The data subchunk indicates size of sound info & raw sound data!
+
+                # DHP-STUB: Comment: format subchunk must have already been seen in order to process data subchunks
                 if not self._fmt_chunk_read:
                     raise Error, 'data chunk before fmt chunk'
+
                 self._data_chunk = chunk
                 self._nframes = chunk.chunksize // self._framesize
                 self._data_seek_needed = 0
-            elif chunkname == 'cue ':
+            elif chunkname == 'cue ': # Not in the original wave_read class
+                # DHP-STUB: Reference: https://docs.python.org/2/library/struct.html
+                # DHP-STUB: Comment: chunk.read(N) means read at most N bytes from the chunk
                 numcue = struct.unpack('<i', chunk.read(4))[0]
                 for i in range(numcue):
                     id, position, datachunkid, chunkstart, blockstart, sampleoffset = struct.unpack('<iiiiii', chunk.read(24))
                     self._cue.append(sampleoffset)
-            elif chunkname == 'smpl':
+            elif chunkname == 'smpl': # Not in the original wave_read class
+                
+                # DHP-STUB: Comment: This confusing looking line of code unpacks 9 (little-endian) 32bit integers and places assigns each to the corresponding left-hand-side variable. The chunk.read argument is 36 because 4 bytes/int * 9 ints = 36 bytes
                 manuf, prod, sampleperiod, midiunitynote, midipitchfraction, smptefmt, smpteoffs, numsampleloops, samplerdata = struct.unpack(
                     '<iiiiiiiii', chunk.read(36))
                 for i in range(numsampleloops):
+                    
+                    # DHP-STUB: Comment: This may be important. TODO
                     cuepointid, type, start, end, fraction, playcount = struct.unpack('<iiiiii', chunk.read(24))
                     self._loops.append([start, end])
+            # outside the large while loop. End of file was reached.
             chunk.skip()
         if not self._fmt_chunk_read or not self._data_chunk:
             raise Error, 'fmt chunk and/or data chunk missing'
@@ -181,7 +204,7 @@ def AudioCallback(outdata, frame_count, time_info, status):
     global playingsounds # DHP-STUB: list of all sounds currently playing
     
     rmlist = [] # DHP-STUB: Sounds to remove from those playing
-    playingsounds = playingsounds[-MAX_POLYPHONY:] # Removes all sounds that cannot find a voice
+    playingsounds = playingsounds[-MAX_NUM_VOICES:] # Removes all sounds that cannot find a voice
 
     # DHP-STUB: Comment: Important function call.
     # 1. This function tells us what sounds to stop playing via rmlist
