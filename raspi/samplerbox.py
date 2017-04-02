@@ -10,7 +10,7 @@ SAMPLES_DIR = "."
 USE_BUTTONS = False     # Set to True to use momentary buttons (connected to RaspberryPi's GPIO pins) to change preset
 
 # DHP-STUB: Comment: Keeping max number of voices low, will prevent chaotic sounds to a degree (especially if velocity isn't being handled correctly).
-MAX_NUM_VOICES = 10
+MAX_NUM_VOICES = 20
 
 NOTES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
 
@@ -150,7 +150,9 @@ class PlayingSound:
         self.sound = sound
         self.pos = 0
         self.fadeoutpos = 0
-        self.isfadeout = False
+
+        # DHP-STUB: Comment: Keep fadeout TRUE for nice sound 
+        self.isfadeout = True
         self.note = note
 
     def fadeout(self, i):
@@ -252,29 +254,14 @@ def MidiCallback(message, time_stamp):
                 if sustain:
                     sustainplayingnotes.append(n)
                 else:
-                    n.fadeout(50)
+                    n.fadeout(4000) # DHP-STUB: Alterable: Originally was 50, and increasing the value results in a lot smoother sound
             playingnotes[midinote] = []
         
 
     elif messagetype == 12:  # Program change
         print 'Program change ' + str(note)
         preset = note
-        LoadSamples()
-
-    elif (messagetype == 11) and (note == 64) and (velocity < 64):  # sustain pedal off
-        for n in sustainplayingnotes:
-            n.fadeout(50)
-        sustainplayingnotes = []
-        sustain = False
-
-    elif (messagetype == 11) and (note == 64) and (velocity >= 64):  # sustain pedal on
-        sustain = True
-
-        ########## DHP-STUB: Addition
-#    elif (messagetype == 11) and (note == 7): #channel volume change
-#        sustain = True
-        
-
+        LoadSamples()        
 
 #########################################
 # LOAD SAMPLES
@@ -298,7 +285,7 @@ sustainplayingnotes = []
 sustain = False
 playingsounds = []
 # DHP-STUB: Alterable: Changing the number of default global volume
-globalvolume = 10 ** (0/20)  # -0dB
+globalvolume = 10 ** (-6/20)  # -6dB
 # DHP-STUB: Alterable: Might want to use this for key shifts later.
 globaltranspose = 0
 
@@ -324,7 +311,7 @@ def ActuallyLoad():
     playingsounds = []
     samples = {}
     # DHP-STUB: Alterable: Consider changing default global volume here as well.
-    globalvolume = 10 ** (0/20)  # 0dB
+    globalvolume = 10 ** (-6/20)  # -3dB
     # DHP-STUB: Alterable: When we want to play in one key higher, we can increment globaltranpase by 1, or 2, or ... 12 would be a shift of a whole octave increase for each blow hole.
     globaltranspose = 0
 
@@ -465,7 +452,9 @@ while True:
     # Read all the ADC channel values in a list.
     values = [0]*10
 
-    for ch in range(5): # each channel of ADC #1
+    # DHP-STUB: TEMP: Set to 6 to test featues of multisound
+    CHANNELS_FROM_ADC_ONE = 6
+    for ch in range(CHANNELS_FROM_ADC_ONE): # each channel of ADC #1
         # (we have 2 ADCs and use 5 channels from each to read the 10 sensors)
         values[ch] = mcp0.read_adc(ch)
                 
@@ -473,14 +462,15 @@ while True:
     print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4}'.format(*values))
 
     # DHP-STUB: Alterable: We need to select proper blow and draw thresholds based on resting value read by air pressure sensors. They all should be values around 512+-1.
-    toleranceToNoise = 80
+    toleranceToNoise = 50
     restingValue = 512
     blowThresh = restingValue + toleranceToNoise
     drawThresh = restingValue - toleranceToNoise
 
-    activeChannels = [1, 2] # Which sensors are hooked up and should be read from. Others will be ignored
-    blowNotes = [63,61,59,57,55]
-    drawNotes = [62,60,58,56,54]
+    activeChannels = [0, 1, 2, 3, 4, 5] # Which sensors are hooked up and should be read from. Others will be ignored
+    # 50, 52, 54, 55, 57, 59, 61, 62, 64, 66, 67, 69, 71
+    blowNotes = [50,54,57,61,64,66] # Based on D Major chord
+    drawNotes = [52,55,59,62,66,69] # Based on 
     # For every channel determine whether the channel is making sound and at what velocity
     for ch in activeChannels:
         drawNote = drawNotes[ch]
