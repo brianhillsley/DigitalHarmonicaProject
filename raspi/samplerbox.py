@@ -7,10 +7,11 @@ from __future__ import division
 #########################################
 AUDIO_DEVICE_ID = 2
 SAMPLES_DIR = "."
-USE_BUTTONS = False     # Set to True to use momentary buttons (connected to RaspberryPi's GPIO pins) to change preset
+USE_BUTTONS = True    # Set to True to use momentary buttons (connected to RaspberryPi's GPIO pins) to change preset
 
 # DHP-STUB: Comment: Keeping max number of voices low, will prevent chaotic sounds to a degree (especially if velocity isn't being handled correctly).
-MAX_NUM_VOICES = 20
+MAX_NUM_VOICES = 25
+NUM_INSTRUMENTS = 3
 
 NOTES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
 
@@ -57,7 +58,6 @@ class HarmonicaTuning():
     def __str__(self):
         return "Blow Notes: " + self.blowNotes + "\nDraw Notes: " + self.drawNotes
     
-
 #########################################
 # SLIGHT MODIFICATION OF PYTHON'S WAVE MODULE
 # TO READ CUE MARKERS & LOOP MARKERS
@@ -228,11 +228,12 @@ def MidiCallback(message, time_stamp):
     note = message[1] if len(message) > 1 else None
     midinote = note
     velocity = message[2] if len(message) > 2 else None
-
+    MIDI_ON = 144
+    MIDI_OFF = 128
     m = ""
-    if (message[0] == 144): # 144 is MIDI-ON 
+    if (message[0] == MIDI_ON): # 144 is MIDI-ON 
         m = "on"
-    elif (message[0] == 128): # 128 is MIDI-OFF
+    elif (message[0] == MIDI_OFF): # 128 is MIDI-OFF
         m = "off"
     else:
         m = "I DON'T KNOW!"
@@ -285,7 +286,7 @@ sustainplayingnotes = []
 sustain = False
 playingsounds = []
 # DHP-STUB: Alterable: Changing the number of default global volume
-globalvolume = 10 ** (-6/20)  # -6dB
+globalvolume = 10 ** (-12/20)  # -12dB
 # DHP-STUB: Alterable: Might want to use this for key shifts later.
 globaltranspose = 0
 
@@ -311,7 +312,7 @@ def ActuallyLoad():
     playingsounds = []
     samples = {}
     # DHP-STUB: Alterable: Consider changing default global volume here as well.
-    globalvolume = 10 ** (-6/20)  # -3dB
+    globalvolume = 10 ** (-12/20)  # -12dB
     # DHP-STUB: Alterable: When we want to play in one key higher, we can increment globaltranpase by 1, or 2, or ... 12 would be a shift of a whole octave increase for each blow hole.
     globaltranspose = 0
 
@@ -417,16 +418,12 @@ if USE_BUTTONS:
             now = time.time()
             if not GPIO.input(18) and (now - lastbuttontime) > 0.2:
                 lastbuttontime = now
-                preset -= 1
-                if preset < 0:
-                    preset = 127
+                preset = (preset - 1) % NUM_INSTRUMENTS
                 LoadSamples()
 
             elif not GPIO.input(17) and (now - lastbuttontime) > 0.2:
                 lastbuttontime = now
-                preset += 1
-                if preset > 127:
-                    preset = 0
+                preset = (preset + 1) % NUM_INSTRUMENTS
                 LoadSamples()
 
             time.sleep(0.020)
@@ -462,15 +459,19 @@ while True:
     print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4}'.format(*values))
 
     # DHP-STUB: Alterable: We need to select proper blow and draw thresholds based on resting value read by air pressure sensors. They all should be values around 512+-1.
-    toleranceToNoise = 50
-    restingValue = 512
+    toleranceToNoise = 30
+    restingValue = 530
     blowThresh = restingValue + toleranceToNoise
     drawThresh = restingValue - toleranceToNoise
 
     activeChannels = [0, 1, 2, 3, 4, 5] # Which sensors are hooked up and should be read from. Others will be ignored
     # 50, 52, 54, 55, 57, 59, 61, 62, 64, 66, 67, 69, 71
-    blowNotes = [50,54,57,61,64,66] # Based on D Major chord
-    drawNotes = [52,55,59,62,66,69] # Based on 
+    # C1, 
+    blowNotes = [36,40,43,48,52,55] 
+    drawNotes = [47,50,55,59,62,65] # Based on
+    
+    blowNoteLastTriggered = [100,,0,0,0,0]
+    
     # For every channel determine whether the channel is making sound and at what velocity
     for ch in activeChannels:
         drawNote = drawNotes[ch]
