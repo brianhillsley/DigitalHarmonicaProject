@@ -2,23 +2,6 @@ from __future__ import division
 # Code adapted from the SamplerBox code by josephernest
 # Changes were made to make the code specialized for the DHP project
 
-#########################################
-# LOCAL CONFIG
-#########################################
-AUDIO_DEVICE_ID = 2
-SAMPLES_DIR = "."
-USE_BUTTONS = True    # Set to True to use momentary buttons (connected to RaspberryPi's GPIO pins) to change preset
-
-# DHP-STUB: Comment: Keeping max number of voices low, will prevent chaotic sounds to a degree (especially if velocity isn't being handled correctly).
-MAX_NUM_VOICES = 10
-NUM_INSTRUMENTS = 4
-instruments = [] # Will be populated with instrument instances
-NOTES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
-
-#########################################
-# IMPORT MODULES
-#########################################
-# DHP-STUB: Comment: wave is a python library that is used for interacting with WAV files. 
 import wave
 import time
 import numpy
@@ -32,16 +15,36 @@ import struct
 import rtmidi_python as rtmidi
 import samplerbox_audio
 
-# DHP-STUB: Comment: Adafruit_MCP3008 is the 10-bit 8-channel ADC we are using to access the air pressure sensors
-# These imports are needed to allow us to use the ADC in a programmatic way
-# DHP-STUB: comment: Import SPI library (for hardware SPI) and MCP3008 library.
+# Adafruit_MCP3008 is the 10-bit 8-channel DAC we are using to access 
+# the air pressure sensors. These imports are needed to allow us to use 
+# the DAC in a programmatic way
+# Import SPI library (for hardware SPI) and MCP3008 library.
 import Adafruit_GPIO.SPI as SPI
 import Adafruit_MCP3008
 
+# Note-worthy Design Decisions:
+#
+#  1. Only concerned with samples from C2 to C7 (60 distinct values)
+#     Frequencies below C2 are far too low for a harmonica. 
+#        C2 (65.4 Hz) has a midivalue of 24
+#        C7 (2093 Hz) has a midivalue of 84
+#
+#  2. Four buttons on-board the harmonica + On/Off Switch
+#     
+#
+#
+
+AUDIO_DEVICE_ID = 2
+SAMPLES_DIR = "."
+USE_BUTTONS = True
+MAX_NUM_VOICES = 10
+NUM_INSTRUMENTS = 7
+instruments = [] # Will be populated with instrument instances
+NOTES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
+
 # Hardware SPI configuration:
 SPI_PORT   = 0
-SPI_DEVICE0 = 0
-SPI_DEVICE1 = 1
+SPI_DEVICE0 = 0; SPI_DEVICE1 = 1
 mcp0 = Adafruit_MCP3008.MCP3008(spi=SPI.SpiDev(SPI_PORT, SPI_DEVICE0))
 mcp1 = Adafruit_MCP3008.MCP3008(spi=SPI.SpiDev(SPI_PORT, SPI_DEVICE1))
 
@@ -59,14 +62,16 @@ class Sample():
 # Instrument is separate from HarmonicaTuning.
 # An <instrument, harmonica-tuning> pair is used
 class Instrument():
-    SAMPLES_PER_INSTRUMENT = 128
+    SAMPLES_PER_INSTRUMENT = 60 # midivalues 24 (C2) thru 84 (C7) 
     
     def __init__(self, instrumentDirName):
-        self.sample_file_array = [None] * self.SAMPLES_PER_INSTRUMENT # Holds array of Sample objects
+		# Holds array of Sample objects
+        self.sample_file_array = [None] * self.SAMPLES_PER_INSTRUMENT
         self.instrumentDirName = instrumentDirName
         # From the samplesDirectory place corresponding samples into 
         # the file string array
         exp = instrumentDirName + os.sep + "*.wav"
+        
         for f in glob.glob(exp): # The sample file is f
 			#print(f)
 			# break the filename into its components
@@ -78,7 +83,12 @@ class Instrument():
 				notename = items[0]
 				# Get numeric midinote value (0-127) for pitch
 				midiNote = NOTES.index(notename[:-1].lower()) + (int(notename[-1])+2) * 12
-			self.sample_file_array[midiNote] = Sample(f,0) # No transpose
+			
+			# adjust midiNote to find proper index for sample array
+			index = midiNote - 24
+			if(index>=0 and index<self.SAMPLES_PER_INSTRUMENT):
+				self.sample_file_array[index] = Sample(f,0)
+				
 			#print self.sample_file_array
 		
 		# Done reading in array with samples that have specific sample files
@@ -91,9 +101,9 @@ class Instrument():
 		# existed at a lower pitch (AKA nothing to be pitch shifted upwards)
 		# The pitch will be dropped from the first available sample pitch.
         self._fillEmptySamplesByTranspose()
-        for sample in self.sample_file_array:
-		    print str(sample)
-        print("-------------------"*2)
+        #for sample in self.sample_file_array:
+		#    print str(sample)
+        #print("-------------------"*2)
 		    
 		
     
@@ -158,11 +168,12 @@ class HarmonicaTuning():
 # SLIGHT MODIFICATION OF PYTHON'S WAVE MODULE
 # TO READ CUE MARKERS & LOOP MARKERS
 #########################################
-# DHP-STUB: Comment: Original source code for the wave was copied and pasted with very little modification. This code is well explained in the following resources
+# DHP-STUB: Comment: Original source code for the wave was copied and pasted with very little modification. 
+# This code is well explained in the following resources
 # https://docs.python.org/2/library/wave.html
 # https://hg.python.org/cpython/file/2.7/Lib/wave.py
 
-# DHP-STUB: Comment: "The class waveread extends the class wave.Wave_read"
+# The class waveread extends the class wave.Wave_read"
 class waveread(wave.Wave_read):
     
     def initfp(self, file):
@@ -247,7 +258,7 @@ class PlayingSound:
         self.pos = 0
         self.fadeoutpos = 0
 
-        # DHP-STUB: Comment: Keep fadeout TRUE for nice sound 
+        # Keep fadeout TRUE for nice sound 
         self.isfadeout = True
         self.note = note
 
@@ -293,10 +304,6 @@ class Sound:
         return npdata
 
 
-#########################################
-# AUDIO AND MIDI CALLBACKS
-#########################################
-
 def AudioCallback(outdata, frame_count, time_info, status):
     global playingsounds # DHP-STUB: list of all sounds currently playing
     
@@ -317,7 +324,7 @@ def AudioCallback(outdata, frame_count, time_info, status):
 
 def MidiCallback(message, time_stamp):
     global playingnotes, sustain, sustainplayingnotes
-    global preset
+    global instrum_sel
     messagetype = message[0] >> 4
     messagechannel = (message[0] & 15) + 1
     # Either note is actually a note (midi, velocity) or it is a channel
@@ -333,7 +340,7 @@ def MidiCallback(message, time_stamp):
         m = "off"
     else:
         m = "I DON'T KNOW!"
-    print "Status:",m,";;; Note:",message[1],";;; velocity:",message[2]
+    #print "Status:",m,";;; Note:",message[1],";;; velocity:",message[2]
     if messagetype == 9 and velocity == 0:
         messagetype = 8
 
@@ -357,7 +364,7 @@ def MidiCallback(message, time_stamp):
 
     elif messagetype == 12:  # Program change
         print 'Program change ' + str(note)
-        preset = note
+        instrum_sel = note
         LoadSamples()        
 
 #########################################
@@ -367,8 +374,8 @@ def MidiCallback(message, time_stamp):
 LoadingThread = None
 LoadingInterrupt = False
 
-FADEOUTLENGTH = 30000
-FADEOUT = numpy.linspace(1., 0., FADEOUTLENGTH)            # by default, float64
+FADEOUTLENGTH = 40000
+FADEOUT = numpy.linspace(1., 0., FADEOUTLENGTH)    # by default, float64
 FADEOUT = numpy.power(FADEOUT, 6)
 FADEOUT = numpy.append(FADEOUT, numpy.zeros(FADEOUTLENGTH, numpy.float32)).astype(numpy.float32)
 SPEED = numpy.power(2, numpy.arange(0.0, 84.0)/12).astype(numpy.float32)
@@ -408,7 +415,7 @@ def properNote(midiNote):
 
 # DHP: WHERE INSTRUMENTS ARE LOADED AND CHANGED / SAMPLES PREPARED
 def ActuallyLoad():
-    global preset
+    global instrum_sel
     global samples
     global playingsounds
     global globalvolume, globaltranspose
@@ -421,15 +428,17 @@ def ActuallyLoad():
 	# use current folder (containing 0 Saw) if no user media containing samples has been found
     samplesdir = SAMPLES_DIR if os.listdir(SAMPLES_DIR) else '.'
     # Get specific instrument directory as the target for grabbing samples
-    print "preset = ", preset
-    samplesdir += os.sep + instruments[preset % NUM_INSTRUMENTS].instrumentDirName
+    print "instrum_sel = ", instrum_sel
+    samplesdir += os.sep + instruments[instrum_sel % NUM_INSTRUMENTS].instrumentDirName
 
     for midinote in range(0, 127):
 		if LoadingInterrupt:
 			return
 		
+		# Proper notes are like "c2", "c5", etc
+		# Improper notes are just the midinote values "24", "60", etc
 		properNote1 = properNote(midinote)
-		print "properNote1 = ", properNote1
+		#print "properNote1 = ", properNote1
 		fn = os.path.join(samplesdir, "%s.wav" % properNote1) # proper
 		fn2 = os.path.join(samplesdir, "%d.wav" % midinote) # numeric
 		if os.path.isfile(fn):
@@ -455,9 +464,9 @@ def ActuallyLoad():
                 except:
                     pass
     if len(initial_keys) > 0:
-        print 'Preset loaded: ' + str(preset)
+        print 'Instrument loaded: ' + str(instrum_sel)
     else:
-        print 'Preset empty: ' + str(preset)
+        print 'Instrument empty: ' + str(instrum_sel)
     
 
 #########################################
@@ -481,22 +490,34 @@ if USE_BUTTONS:
 
     def Buttons():
         GPIO.setmode(GPIO.BCM)
-        GPIO.setup(18, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        global preset, lastbuttontime
+        GPIO.setup(18, GPIO.IN, pull_up_down=GPIO.PUD_UP) # - instrument
+        GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP) # + instrument
+        GPIO.setup(23, GPIO.IN, pull_up_down=GPIO.PUD_UP) # + transpose
+        GPIO.setup(24, GPIO.IN, pull_up_down=GPIO.PUD_UP) # - transpose
+        global instrum_sel, lastbuttontime, globaltranspose
         while True:
             now = time.time()
             if not GPIO.input(18) and (now - lastbuttontime) > 0.2:
                 lastbuttontime = now
                 # decrement instrument selection
-                preset = (preset - 1) % NUM_INSTRUMENTS
+                instrum_sel = (instrum_sel - 1) % NUM_INSTRUMENTS
                 LoadSamples()
 
             elif not GPIO.input(17) and (now - lastbuttontime) > 0.2:
                 lastbuttontime = now
                 # increment instrument selection
-                preset = (preset + 1) % NUM_INSTRUMENTS
+                instrum_sel = (instrum_sel + 1) % NUM_INSTRUMENTS
                 LoadSamples()
+                
+            elif not GPIO.input(23) and (now - lastbuttontime) > 0.2:
+				lastbuttontime = now
+				# up by one semitone
+				globaltranspose = globaltranspose + 1
+            
+            elif not GPIO.input(24) and (now - lastbuttontime) > 0.2:
+				lastbuttontime = now
+				# down by one semitone
+				globaltranspose = globaltranspose - 1 
 
             time.sleep(0.020)
 
@@ -504,31 +525,26 @@ if USE_BUTTONS:
     ButtonsThread.daemon = True
     ButtonsThread.start()
 
+# Parses instruments from the sample directory and its paths
 def LoadInstruments():
 	global instruments
 	
 	# The following instruments will be available for playing
-	print "LOADING 0 Saw"
 	instruments.append(Instrument("0 Saw"))
-	print "-----"*8
-	print "Loading 1 organkorgopoly800"
 	instruments.append(Instrument("1 organkorgopoly800"))
-	print "-----"*8
-	print "Loading 2 mellotron"
 	instruments.append(Instrument("2 mellotron"))
-	print "-----"*8
-	print "Loading 3 Organ"
 	instruments.append(Instrument("3 Organ"))
-	print "-----"*8
+	instruments.append(Instrument("4 Rhodes"))
+	instruments.append(Instrument("5 Trumpet"))
+	instruments.append(Instrument("6 Strings"))
 	print "FINISHED LOADING ALL INSTRUMENTS"
 	
-	
-
 #########################################
 # LOAD FIRST SOUNDBANK
 #########################################
-preset = 0
+
 LoadInstruments()
+instrum_sel = 0
 LoadSamples()
 
 #########################################
@@ -536,29 +552,28 @@ LoadSamples()
 #########################################
 midi_in = [rtmidi.MidiIn()]
 previous = []
-# DHP-STUB: Comment: This is the infinite loop where all the magic happens!
+# This is the infinite loop where all the magic happens!
 while True:
     # Read all the ADC channel values in a list.
     values = [0]*10
 
-    # DHP-STUB: TEMP: Set to 6 to test featues of multisound
+    # TEMP: Set to 6 to test featues of multisound
     CHANNELS_FROM_ADC_ONE = 6
     for ch in range(CHANNELS_FROM_ADC_ONE): # each channel of ADC #1
         # (we have 2 ADCs and use 5 channels from each to read the 10 sensors)
         values[ch] = mcp0.read_adc(ch)
                 
     # Print the ADC values.    
-    print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4}'.format(*values))
+    #print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4}'.format(*values))
 
     # DHP-STUB: Alterable: We need to select proper blow and draw thresholds based on resting value read by air pressure sensors. They all should be values around 512+-1.
-    toleranceToNoise = 30
+    toleranceToNoise = 40
     restingValue = 530
     blowThresh = restingValue + toleranceToNoise
     drawThresh = restingValue - toleranceToNoise
 
     activeChannels = [0, 1, 2, 3, 4, 5] # Which sensors are hooked up and should be read from. Others will be ignored
-    # 50, 52, 54, 55, 57, 59, 61, 62, 64, 66, 67, 69, 71
-    # C1, 
+    
     blowNotes = [36,40,43,48,52,55] 
     drawNotes = [47,50,55,59,62,65] # Based on
     
