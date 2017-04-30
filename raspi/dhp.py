@@ -10,8 +10,9 @@ SAMPLES_DIR = "."
 USE_BUTTONS = True    # Set to True to use momentary buttons (connected to RaspberryPi's GPIO pins) to change preset
 
 # DHP-STUB: Comment: Keeping max number of voices low, will prevent chaotic sounds to a degree (especially if velocity isn't being handled correctly).
-MAX_NUM_VOICES = 25
+MAX_NUM_VOICES = 10
 NUM_INSTRUMENTS = 4
+instruments = [] # Will be populated with instrument instances
 NOTES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
 
 #########################################
@@ -62,6 +63,7 @@ class Instrument():
     
     def __init__(self, instrumentDirName):
         self.sample_file_array = [None] * self.SAMPLES_PER_INSTRUMENT # Holds array of Sample objects
+        self.instrumentDirName = instrumentDirName
         # From the samplesDirectory place corresponding samples into 
         # the file string array
         exp = instrumentDirName + os.sep + "*.wav"
@@ -274,8 +276,6 @@ class Sound:
             self.nframes = wf.getnframes()
 
         self.data = self.frames2array(wf.readframes(self.nframes), wf.getsampwidth(), wf.getnchannels())
-        print self.data ###
-        a = raw_input("paused") ###
         wf.close()
 
     def play(self, note):
@@ -320,6 +320,7 @@ def MidiCallback(message, time_stamp):
     global preset
     messagetype = message[0] >> 4
     messagechannel = (message[0] & 15) + 1
+    # Either note is actually a note (midi, velocity) or it is a channel
     note = message[1] if len(message) > 1 else None
     midinote = note
     velocity = message[2] if len(message) > 2 else None
@@ -366,13 +367,11 @@ def MidiCallback(message, time_stamp):
 LoadingThread = None
 LoadingInterrupt = False
 
-# DHP-STUB: Comment: Creates an array of floats that describe the 
 FADEOUTLENGTH = 30000
 FADEOUT = numpy.linspace(1., 0., FADEOUTLENGTH)            # by default, float64
 FADEOUT = numpy.power(FADEOUT, 6)
 FADEOUT = numpy.append(FADEOUT, numpy.zeros(FADEOUTLENGTH, numpy.float32)).astype(numpy.float32)
 SPEED = numpy.power(2, numpy.arange(0.0, 84.0)/12).astype(numpy.float32)
-# DHP-STUB: End-Block
 
 # DHP-STUB: Comment: Initializing variables for note information
 samples = {}
@@ -399,6 +398,15 @@ def LoadSamples():
     LoadingThread.daemon = True
     LoadingThread.start()
 
+# TODO: Is this correct and consistent?
+def properNote(midiNote):
+	global NOTES
+	propNoteStr = NOTES[midiNote % 12]
+	octaveNum = int(midiNote / 12)
+	propNoteStr+=str(octaveNum)
+	return propNoteStr
+
+# DHP: WHERE INSTRUMENTS ARE LOADED AND CHANGED / SAMPLES PREPARED
 def ActuallyLoad():
     global preset
     global samples
@@ -408,60 +416,27 @@ def ActuallyLoad():
     samples = {}
     # DHP-STUB: Alterable: Consider changing default global volume here as well.
     globalvolume = 10 ** (-12/20)  # -12dB
-    # DHP-STUB: Alterable: When we want to play in one key higher, we can increment globaltranpase by 1, or 2, or ... 12 would be a shift of a whole octave increase for each blow hole.
     globaltranspose = 0
 
-    samplesdir = SAMPLES_DIR if os.listdir(SAMPLES_DIR) else '.'      # use current folder (containing 0 Saw) if no user media containing samples has been found
+	# use current folder (containing 0 Saw) if no user media containing samples has been found
+    samplesdir = SAMPLES_DIR if os.listdir(SAMPLES_DIR) else '.'
+    # Get specific instrument directory as the target for grabbing samples
+    print "preset = ", preset
+    samplesdir += os.sep + instruments[preset % NUM_INSTRUMENTS].instrumentDirName
 
-    basename = next((f for f in os.listdir(samplesdir) if f.startswith("%d " % preset)), None)      # or next(glob.iglob("blah*"), None)
-    if basename:
-        dirname = os.path.join(samplesdir, basename)
-    if not basename:
-        print 'Preset empty: %s' % preset
-        return
-    print 'Preset loading: %s (%s)' % (preset, basename)
-
-    definitionfname = os.path.join(dirname, "definition.txt")
-    if os.path.isfile(definitionfname):
-        with open(definitionfname, 'r') as definitionfile:
-            for i, pattern in enumerate(definitionfile):
-                try:
-                    if r'%%volume' in pattern:        # %%paramaters are global parameters
-                        globalvolume *= 10 ** (float(pattern.split('=')[1].strip()) / 20)
-                        continue
-                    if r'%%transpose' in pattern:
-                        globaltranspose = int(pattern.split('=')[1].strip())
-                        continue
-                    defaultparams = {'midinote': '0', 'velocity': '127', 'notename': ''}
-                    if len(pattern.split(',')) > 1:
-                        defaultparams.update(dict([item.split('=') for item in pattern.split(',', 1)[1].replace(' ', '').replace('%', '').split(',')]))
-                    pattern = pattern.split(',')[0]
-                    pattern = re.escape(pattern.strip())
-                    pattern = pattern.replace(r"\%midinote", r"(?P<midinote>\d+)").replace(r"\%velocity", r"(?P<velocity>\d+)")\
-                                     .replace(r"\%notename", r"(?P<notename>[A-Ga-g]#?[0-9])").replace(r"\*", r".*?").strip()    # .*? => non greedy
-                    for fname in os.listdir(dirname):
-                        if LoadingInterrupt:
-                            return
-                        m = re.match(pattern, fname)
-                        if m:
-                            info = m.groupdict()
-                            midinote = int(info.get('midinote', defaultparams['midinote']))
-                            velocity = int(info.get('velocity', defaultparams['velocity']))
-                            notename = info.get('notename', defaultparams['notename'])
-                            if notename:
-                                midinote = NOTES.index(notename[:-1].lower()) + (int(notename[-1])+2) * 12
-                            samples[midinote, velocity] = Sound(os.path.join(dirname, fname), midinote, velocity)
-                except:
-                    print "Error in definition file, skipping line %s." % (i+1)
-
-    else:
-        for midinote in range(0, 127):
-            if LoadingInterrupt:
-                return
-            file = os.path.join(dirname, "%d.wav" % midinote)
-            if os.path.isfile(file):
-                samples[midinote, 127] = Sound(file, midinote, 127)
-
+    for midinote in range(0, 127):
+		if LoadingInterrupt:
+			return
+		
+		properNote1 = properNote(midinote)
+		print "properNote1 = ", properNote1
+		fn = os.path.join(samplesdir, "%s.wav" % properNote1) # proper
+		fn2 = os.path.join(samplesdir, "%d.wav" % midinote) # numeric
+		if os.path.isfile(fn):
+			samples[midinote, 127] = Sound(fn, midinote, 127)
+		elif os.path.isfile(fn2):
+			samples[midinote, 127] = Sound(fn2, midinote, 127)
+		
     initial_keys = set(samples.keys())
     for midinote in xrange(128):
         lastvelocity = None
@@ -513,11 +488,13 @@ if USE_BUTTONS:
             now = time.time()
             if not GPIO.input(18) and (now - lastbuttontime) > 0.2:
                 lastbuttontime = now
+                # decrement instrument selection
                 preset = (preset - 1) % NUM_INSTRUMENTS
                 LoadSamples()
 
             elif not GPIO.input(17) and (now - lastbuttontime) > 0.2:
                 lastbuttontime = now
+                # increment instrument selection
                 preset = (preset + 1) % NUM_INSTRUMENTS
                 LoadSamples()
 
@@ -528,18 +505,20 @@ if USE_BUTTONS:
     ButtonsThread.start()
 
 def LoadInstruments():
+	global instruments
+	
 	# The following instruments will be available for playing
 	print "LOADING 0 Saw"
-	Instrument("0 Saw")
+	instruments.append(Instrument("0 Saw"))
 	print "-----"*8
 	print "Loading 1 organkorgopoly800"
-	Instrument("1 organkorgopoly800")
+	instruments.append(Instrument("1 organkorgopoly800"))
 	print "-----"*8
 	print "Loading 2 mellotron"
-	Instrument("2 mellotron")
+	instruments.append(Instrument("2 mellotron"))
 	print "-----"*8
 	print "Loading 3 Organ"
-	Instrument("3 Organ")
+	instruments.append(Instrument("3 Organ"))
 	print "-----"*8
 	print "FINISHED LOADING ALL INSTRUMENTS"
 	
@@ -549,8 +528,8 @@ def LoadInstruments():
 # LOAD FIRST SOUNDBANK
 #########################################
 preset = 0
-LoadSamples()
 LoadInstruments()
+LoadSamples()
 
 #########################################
 # MIDI DEVICES DETECTION (MAIN LOOP)
@@ -582,8 +561,6 @@ while True:
     # C1, 
     blowNotes = [36,40,43,48,52,55] 
     drawNotes = [47,50,55,59,62,65] # Based on
-    
-    blowNoteLastTriggered = [100,0,0,0,0,0]
     
     # For every channel determine whether the channel is making sound and at what velocity
     for ch in activeChannels:
