@@ -30,14 +30,15 @@ import Adafruit_MCP3008
 #        C7 (2093 Hz) has a midivalue of 84
 #
 #  2. Four buttons on-board the harmonica + On/Off Switch
-#     
-#
-#
+#        GPIO16
+#		 GPIO17
+#		 GPIO23
+#		 GPIO24
 
 AUDIO_DEVICE_ID = 2
 SAMPLES_DIR = "."
 USE_BUTTONS = True
-MAX_NUM_VOICES = 10
+MAX_NUM_VOICES = 5
 NUM_INSTRUMENTS = 7
 instruments = [] # Will be populated with instrument instances
 NOTES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
@@ -64,10 +65,11 @@ class Sample():
 class Instrument():
     SAMPLES_PER_INSTRUMENT = 60 # midivalues 24 (C2) thru 84 (C7) 
     
-    def __init__(self, instrumentDirName):
+    def __init__(self, instrumentDirName, globalstart=0):
 		# Holds array of Sample objects
         self.sample_file_array = [None] * self.SAMPLES_PER_INSTRUMENT
         self.instrumentDirName = instrumentDirName
+        self.globalstart = globalstart
         # From the samplesDirectory place corresponding samples into 
         # the file string array
         exp = instrumentDirName + os.sep + "*.wav"
@@ -127,7 +129,7 @@ class Instrument():
 				orig_samp_obj = self.sample_file_array[woTransMostRecent]
 				fn = orig_samp_obj.fileName
 				transposeBy = s-woTransMostRecent
-				self.sample_file_array[s] = Sample(fn, transposeBy) 
+				self.sample_file_array[s] = Sample(fn, transposeBy, self.globalstart) 
 		
 		woTransMostRecent = -1
 		# Backward iteration over sample items (down tranposes)
@@ -143,7 +145,7 @@ class Instrument():
 				orig_samp_obj = self.sample_file_array[woTransMostRecent]
 				fn = orig_samp_obj.fileName
 				transposeBy = s-woTransMostRecent # Switched
-				self.sample_file_array[s] = Sample(fn, transposeBy) 
+				self.sample_file_array[s] = Sample(fn, transposeBy, self.globalstart) 
 		# Now all indices in the sample array contain valid Sample 
 		# objects (midi-mapping is complete)
 		
@@ -185,18 +187,18 @@ class waveread(wave.Wave_read):
         self._ieee = False
         self._file = Chunk(file, bigendian=0)
 
-        # DHP-STUB: Comment: Check to ensure the waveread 
+        # Check to ensure the waveread 
         if self._file.getname() != 'RIFF':
             raise Error, 'file does not start with RIFF id'
         if self._file.read(4) != 'WAVE':
             raise Error, 'not a WAVE file'
 
-        # DHP-STUB: Comment: More Initializations for waveread's member variables
+        # More Initializations for waveread's member variables
         self._fmt_chunk_read = 0
         self._data_chunk = None
 
-        # DHP-STUB: Comment: Reads all chunks of data in the WAVE file
-        # DHP-STUB: Reference: docs.python.org/2/library/chunk.html
+        # Reads all chunks of data in the WAVE file
+        # Ref: docs.python.org/2/library/chunk.html
         # This while-loop ends when the end of file is hit.
         while 1:
             self._data_seek_needed = 1
@@ -209,25 +211,29 @@ class waveread(wave.Wave_read):
                 self._read_fmt_chunk(chunk)
                 self._fmt_chunk_read = 1
             elif chunkname == 'data': 
-                # DHP-STUB: Comment: The data subchunk indicates size of sound info & raw sound data!
+                # The data subchunk indicates size of sound info & raw sound data!
 
-                # DHP-STUB: Comment: format subchunk must have already been seen in order to process data subchunks
+                # format subchunk must have already been seen in order to process data subchunks
                 if not self._fmt_chunk_read:
                     raise Error, 'data chunk before fmt chunk'
 
                 self._data_chunk = chunk
                 self._nframes = chunk.chunksize // self._framesize
                 self._data_seek_needed = 0
-            elif chunkname == 'cue ': # Not in the original wave_read class
-                # DHP-STUB: Reference: https://docs.python.org/2/library/struct.html
-                # DHP-STUB: Comment: chunk.read(N) means read at most N bytes from the chunk
+            elif chunkname == 'cue ': # Not in original wave_read class
+                # Ref: https://docs.python.org/2/library/struct.html
+                # chunk.read(N) means read at most N bytes from the chunk
                 numcue = struct.unpack('<i', chunk.read(4))[0]
                 for i in range(numcue):
                     id, position, datachunkid, chunkstart, blockstart, sampleoffset = struct.unpack('<iiiiii', chunk.read(24))
                     self._cue.append(sampleoffset)
-            elif chunkname == 'smpl': # Not in the original wave_read class
+            elif chunkname == 'smpl': # Not in original wave_read class
                 
-                # DHP-STUB: Comment: This confusing looking line of code unpacks 9 (little-endian) 32bit integers and places assigns each to the corresponding left-hand-side variable. The chunk.read argument is 36 because 4 bytes/int * 9 ints = 36 bytes
+                # DHP-STUB: This confusing looking line of code 
+                # unpacks 9 (little-endian) 32bit integers and places 
+                # assigns each to the corresponding left-hand-side 
+                # variable. The chunk.read argument is 36 because 
+                # 4 bytes/int * 9 ints = 36 bytes
                 manuf, prod, sampleperiod, midiunitynote, midipitchfraction, smptefmt, smpteoffs, numsampleloops, samplerdata = struct.unpack(
                     '<iiiiiiiii', chunk.read(36))
                 for i in range(numsampleloops):
@@ -250,16 +256,13 @@ class waveread(wave.Wave_read):
 #########################################
 # MIXER CLASSES
 #########################################
-
 class PlayingSound:
-
+	
     def __init__(self, sound, note):
         self.sound = sound
         self.pos = 0
         self.fadeoutpos = 0
-
-        # Keep fadeout TRUE for nice sound 
-        self.isfadeout = True
+        self.isfadeout = False
         self.note = note
 
     def fadeout(self, i):
@@ -273,7 +276,7 @@ class PlayingSound:
 
 
 class Sound:
-
+	
     def __init__(self, filename, midinote, velocity):
         wf = waveread(filename)
         self.fname = filename
@@ -305,15 +308,17 @@ class Sound:
 
 
 def AudioCallback(outdata, frame_count, time_info, status):
-    global playingsounds # DHP-STUB: list of all sounds currently playing
+    global playingsounds
     
     rmlist = [] # DHP-STUB: Sounds to remove from those playing
     playingsounds = playingsounds[-MAX_NUM_VOICES:] # Removes all sounds that cannot find a voice
 
-    # DHP-STUB: Comment: Important function call.
+    # very important function call
     # 1. This function tells us what sounds to stop playing via rmlist
+    # 2. Conveys Fadeout and playback speed
     b = samplerbox_audio.mixaudiobuffers(playingsounds, rmlist, frame_count, FADEOUT, FADEOUTLENGTH, SPEED)
     
+    # Remove all sounds that are no longer to be playing
     for e in rmlist:
         try:
             playingsounds.remove(e)
@@ -323,8 +328,8 @@ def AudioCallback(outdata, frame_count, time_info, status):
     outdata[:] = b.reshape(outdata.shape)
 
 def MidiCallback(message, time_stamp):
-    global playingnotes, sustain, sustainplayingnotes
-    global instrum_sel
+    global playingnotes, sustain, sustainplayingnotes, instrum_sel
+    
     messagetype = message[0] >> 4
     messagechannel = (message[0] & 15) + 1
     # Either note is actually a note (midi, velocity) or it is a channel
@@ -340,33 +345,32 @@ def MidiCallback(message, time_stamp):
         m = "off"
     else:
         m = "I DON'T KNOW!"
-    #print "Status:",m,";;; Note:",message[1],";;; velocity:",message[2]
+    print "Status:",m,";;; Note:",message[1],";;; velocity:",message[2]
     if messagetype == 9 and velocity == 0:
         messagetype = 8
 
-    if messagetype == 9:    # Note on
+    if messagetype == 9:    # Message says "Note on"
         midinote += globaltranspose
         try:
             playingnotes.setdefault(midinote, []).append(samples[midinote, velocity].play(midinote))
         except:
             pass
 
-    elif messagetype == 8:  # Note off
+    elif messagetype == 8:  # Message says "Note off"
         midinote += globaltranspose
         if midinote in playingnotes:
             for n in playingnotes[midinote]:
                 if sustain:
                     sustainplayingnotes.append(n)
                 else:
-                    n.fadeout(4000) # DHP-STUB: Alterable: Originally was 50, and increasing the value results in a lot smoother sound
+                    n.fadeout(1000) # Much smoother with higher value
             playingnotes[midinote] = []
-        
-
-    elif messagetype == 12:  # Program change
+            
+    elif messagetype == 12:  # Instrument Change
         print 'Program change ' + str(note)
         instrum_sel = note
-        LoadSamples()        
-
+        LoadSamples()    # Load samples for the newly loaded instrument
+        
 #########################################
 # LOAD SAMPLES
 #########################################
@@ -377,23 +381,22 @@ LoadingInterrupt = False
 FADEOUTLENGTH = 40000
 FADEOUT = numpy.linspace(1., 0., FADEOUTLENGTH)    # by default, float64
 FADEOUT = numpy.power(FADEOUT, 6)
-FADEOUT = numpy.append(FADEOUT, numpy.zeros(FADEOUTLENGTH, numpy.float32)).astype(numpy.float32)
+FADEOUT = numpy.append(FADEOUT, \
+    numpy.zeros(FADEOUTLENGTH, numpy.float32)).astype(numpy.float32)
 SPEED = numpy.power(2, numpy.arange(0.0, 84.0)/12).astype(numpy.float32)
 
-# DHP-STUB: Comment: Initializing variables for note information
 samples = {}
 playingnotes = {}
-sustainplayingnotes = []
-sustain = False
+sustainplayingnotes = [] # TODO: May be able to get rid of sustain
+sustain = False # TODO: May be able to get rid of the sustain
 playingsounds = []
-# DHP-STUB: Alterable: Changing the number of default global volume
-globalvolume = 10 ** (-12/20)  # -12dB
-# DHP-STUB: Alterable: Might want to use this for key shifts later.
-globaltranspose = 0
+
+db = -12 
+globalvolume = 10 ** (db/20) # Global volume parameter
+globaltranspose = 0 # Altered through GPIO buttons
 
 def LoadSamples():
-    global LoadingThread
-    global LoadingInterrupt
+    global LoadingThread, LoadingInterrupt
 
     if LoadingThread:
         LoadingInterrupt = True
@@ -405,7 +408,7 @@ def LoadSamples():
     LoadingThread.daemon = True
     LoadingThread.start()
 
-# TODO: Is this correct and consistent?
+# This function defines 24 -> C2, 36 -> C3
 def properNote(midiNote):
 	global NOTES
 	propNoteStr = NOTES[midiNote % 12]
@@ -415,22 +418,19 @@ def properNote(midiNote):
 
 # DHP: WHERE INSTRUMENTS ARE LOADED AND CHANGED / SAMPLES PREPARED
 def ActuallyLoad():
-    global instrum_sel
-    global samples
-    global playingsounds
-    global globalvolume, globaltranspose
+    global instrum_sel, samples, playingsounds, globalvolume, globaltranspose
     playingsounds = []
     samples = {}
-    # DHP-STUB: Alterable: Consider changing default global volume here as well.
-    globalvolume = 10 ** (-12/20)  # -12dB
-    globaltranspose = 0
 
 	# use current folder (containing 0 Saw) if no user media containing samples has been found
     samplesdir = SAMPLES_DIR if os.listdir(SAMPLES_DIR) else '.'
     # Get specific instrument directory as the target for grabbing samples
-    print "instrum_sel = ", instrum_sel
+    print "instrum_sel = ", instruments[instrum_sel].instrumentDirName
     samplesdir += os.sep + instruments[instrum_sel % NUM_INSTRUMENTS].instrumentDirName
 
+	# TODO: Limit this to the midi notes that instruments actually have.
+	#MIDI_MIN = 24; MIDI_MAX = 84
+    #for midinote in range(MIDI_MIN, MIDI_MAX+1):
     for midinote in range(0, 127):
 		if LoadingInterrupt:
 			return
@@ -473,7 +473,7 @@ def ActuallyLoad():
 # OPEN AUDIO DEVICE
 #########################################
 try:
-    sd = sounddevice.OutputStream(device=AUDIO_DEVICE_ID, blocksize=512, samplerate=44100, channels=2, dtype='int16', callback=AudioCallback)
+    sd = sounddevice.OutputStream(device=AUDIO_DEVICE_ID, blocksize=256, samplerate=44100, channels=2, dtype='int16', callback=AudioCallback)
     sd.start()
     print 'Opened audio device #%i' % AUDIO_DEVICE_ID
 except:
@@ -494,7 +494,8 @@ if USE_BUTTONS:
         GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP) # + instrument
         GPIO.setup(23, GPIO.IN, pull_up_down=GPIO.PUD_UP) # + transpose
         GPIO.setup(24, GPIO.IN, pull_up_down=GPIO.PUD_UP) # - transpose
-        global instrum_sel, lastbuttontime, globaltranspose
+        GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_UP) # sustain
+        global instrum_sel, lastbuttontime, globaltranspose, sustain
         while True:
             now = time.time()
             if not GPIO.input(18) and (now - lastbuttontime) > 0.2:
@@ -513,11 +514,19 @@ if USE_BUTTONS:
 				lastbuttontime = now
 				# up by one semitone
 				globaltranspose = globaltranspose + 1
+				print "transposed={0}".format(globaltranspose)
             
             elif not GPIO.input(24) and (now - lastbuttontime) > 0.2:
 				lastbuttontime = now
 				# down by one semitone
 				globaltranspose = globaltranspose - 1 
+				print "transposed={0}".format(globaltranspose)
+				
+            elif not GPIO.input(27) and (now - lastbuttontime) > 0.2:
+				lastbuttontime = now
+				sustain = (not sustain)
+				print "sustain={0}".format(sustain)
+
 
             time.sleep(0.020)
 
@@ -535,16 +544,15 @@ def LoadInstruments():
 	instruments.append(Instrument("2 mellotron"))
 	instruments.append(Instrument("3 Organ"))
 	instruments.append(Instrument("4 Rhodes"))
-	instruments.append(Instrument("5 Trumpet"))
+	instruments.append(Instrument("5 Trumpet", globalstart=1))
 	instruments.append(Instrument("6 Strings"))
 	print "FINISHED LOADING ALL INSTRUMENTS"
-	
+
 #########################################
 # LOAD FIRST SOUNDBANK
 #########################################
-
-LoadInstruments()
 instrum_sel = 0
+LoadInstruments()
 LoadSamples()
 
 #########################################
@@ -552,11 +560,32 @@ LoadSamples()
 #########################################
 midi_in = [rtmidi.MidiIn()]
 previous = []
+
+
+# We need to select proper blow and draw 
+# thresholds based on resting value read by air pressure sensors. 
+# They all should be values around 512+-1.
+blowTolerance = 30
+drawTolerance = 15 
+restingValue = 530
+blowThresh = restingValue + blowTolerance
+drawThresh = restingValue - drawTolerance
+
+# Which sensors are hooked up and should be read from. Others will be ignored
+activeChannels = [0, 1, 2, 3, 4, 5]
+
+# 0 for off, -1 for draw, +1 for blow
+prevValues = [0] * len(activeChannels)
+
+blowNotes = [36,40,43,48,52,55] 
+drawNotes = [47,50,55,59,62,65] # Based on
+
+
 # This is the infinite loop where all the magic happens!
 while True:
     # Read all the ADC channel values in a list.
     values = [0]*10
-
+    #print prevValues
     # TEMP: Set to 6 to test featues of multisound
     CHANNELS_FROM_ADC_ONE = 6
     for ch in range(CHANNELS_FROM_ADC_ONE): # each channel of ADC #1
@@ -564,34 +593,38 @@ while True:
         values[ch] = mcp0.read_adc(ch)
                 
     # Print the ADC values.    
-    #print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4}'.format(*values))
+    print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4}'.format(*values))
 
-    # DHP-STUB: Alterable: We need to select proper blow and draw thresholds based on resting value read by air pressure sensors. They all should be values around 512+-1.
-    toleranceToNoise = 40
-    restingValue = 530
-    blowThresh = restingValue + toleranceToNoise
-    drawThresh = restingValue - toleranceToNoise
-
-    activeChannels = [0, 1, 2, 3, 4, 5] # Which sensors are hooked up and should be read from. Others will be ignored
-    
-    blowNotes = [36,40,43,48,52,55] 
-    drawNotes = [47,50,55,59,62,65] # Based on
-    
-    # For every channel determine whether the channel is making sound and at what velocity
+    # For every channel determine whether the channel is making sound
+    # and at what velocity
     for ch in activeChannels:
         drawNote = drawNotes[ch]
         blowNote = blowNotes[ch]
         
-        if values[ch] > blowThresh: # BLOW NOTE TRIGGERED
-            amount = (values[ch]-blowThresh)/(512.0 - toleranceToNoise)
-            message = [144,blowNote,int(127.0*amount)]
-            MidiCallback(message, None)
-        elif values[ch] < drawThresh: # DRAW NOTE TRIGGERED
-            amount = (drawThresh - values[ch])/(512.0 - toleranceToNoise)
-            message = [144,drawNote,int(127.0*amount)]
-            MidiCallback(message, None)
-        else:
-            # Turn off blow and draw notes for this channel
+        if (values[ch] > blowThresh): # BLOW NOTE TRIGGERED
+            if (prevValues[ch]!=1): # Need to start the note
+                prevValues[ch] = 1
+                print "blow note triggered"
+                amount = (values[ch]-blowThresh)/(512.0 - blowTolerance)
+                # Turn draw off
+                message = [128,drawNote,127]
+                MidiCallback(message, None)   
+                # Turn blow on
+                message = [144,blowNote,int(127.0*amount)]
+                MidiCallback(message, None)
+        elif (values[ch] < drawThresh): # DRAW NOTE TRIGGERED
+            if (prevValues[ch]!=2): # Need to start the note
+                prevValues[ch] = 2
+                print "draw note triggered"
+                amount = (drawThresh - values[ch])/(512.0 - drawTolerance)
+                # Turn blow off
+                message = [128,blowNote,127]
+                MidiCallback(message, None)
+				# Turn draw on
+                message = [144,drawNote,int(127.0*amount)]
+                MidiCallback(message, None)
+        elif (prevValues[ch]!=0):
+            prevValues[ch] = 0
             message = [128,blowNote,127]
             MidiCallback(message, None)
             message = [128,drawNote,127]
@@ -605,4 +638,4 @@ while True:
             midi_in[-1].open_port(port)
             print 'Opened MIDI: ' + port
             previous = midi_in[0].ports
-        time.sleep(.05)
+        time.sleep(0.05)
