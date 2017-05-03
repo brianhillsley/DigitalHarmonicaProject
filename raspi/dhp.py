@@ -41,7 +41,7 @@ AUDIO_DEVICE_ID = 2
 SAMPLES_DIR = "samples" # Where the instrument folders live
 USE_BUTTONS = True
 MAX_NUM_VOICES = 5
-NUM_INSTRUMENTS = 13
+NUM_INSTRUMENTS = 0 # Value will be altered when Instruments are parsed
 CHANNELS_FROM_ADC_ONE = 6
 CHANNELS_FROM_ADC_TWO = 0 # Unimplemented currently
 instruments = [] 		  # Will be populated with instrument instances
@@ -559,7 +559,7 @@ def turnOff(midiNote):
 
 # Parses instruments from the sample directory and its paths
 def LoadInstruments():
-	global instruments
+	global instruments, NUM_INSTRUMENTS
 	
 	# The following instruments will be available for playing
 	instruments.append(Instrument("0 Saw"))
@@ -576,8 +576,9 @@ def LoadInstruments():
 	instruments.append(Instrument("11 Voice"))
 	instruments.append(Instrument("12 Trombone"))
 	instruments.append(Instrument("13 BuzzSynth"))
+	NUM_INSTRUMENTS = len(instruments)
 	
-	print "FINISHED LOADING ALL INSTRUMENTS"
+	print "FINISHED LOADING ALL",  NUM_INSTRUMENTS, "INSTRUMENTS"
 
 # Identifies the average pressure reading while
 # the sensor is at rest. Each sensor gets its own value
