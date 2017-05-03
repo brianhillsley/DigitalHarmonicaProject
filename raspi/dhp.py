@@ -2,6 +2,7 @@ from __future__ import division
 # Code adapted from the SamplerBox code by josephernest
 # Changes were made to make the code specialized for the DHP project
 
+from operator import add
 import wave
 import time
 import numpy
@@ -29,19 +30,26 @@ import Adafruit_MCP3008
 #        C2 (65.4 Hz) has a midivalue of 24
 #        C7 (2093 Hz) has a midivalue of 84
 #
-#  2. Four buttons on-board the harmonica + On/Off Switch
+#  2. Five buttons on-board the harmonica + On/Off Switch
 #        GPIO16
 #		 GPIO17
 #		 GPIO23
 #		 GPIO24
+#		 GPIO27 (sustain on/off) (double click for silence)
 
 AUDIO_DEVICE_ID = 2
-SAMPLES_DIR = "."
+SAMPLES_DIR = "samples" # Where the instrument folders live
 USE_BUTTONS = True
 MAX_NUM_VOICES = 5
-NUM_INSTRUMENTS = 7
-instruments = [] # Will be populated with instrument instances
+NUM_INSTRUMENTS = 13
+CHANNELS_FROM_ADC_ONE = 6
+CHANNELS_FROM_ADC_TWO = 0 # Unimplemented currently
+instruments = [] 		  # Will be populated with instrument instances
+restingSensorValues = []  # Will contain the sensor values while at rest
+blowTolerance = 30
+drawTolerance = 15 
 NOTES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
+
 
 # Hardware SPI configuration:
 SPI_PORT   = 0
@@ -485,7 +493,7 @@ except:
 #########################################
 if USE_BUTTONS:
     import RPi.GPIO as GPIO
-
+	
     lastbuttontime = 0
 
     def Buttons():
@@ -495,7 +503,8 @@ if USE_BUTTONS:
         GPIO.setup(23, GPIO.IN, pull_up_down=GPIO.PUD_UP) # + transpose
         GPIO.setup(24, GPIO.IN, pull_up_down=GPIO.PUD_UP) # - transpose
         GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_UP) # sustain
-        global instrum_sel, lastbuttontime, globaltranspose, sustain
+        global instrum_sel, lastbuttontime, globaltranspose, sustain, \
+        sustainplayingnotes
         while True:
             now = time.time()
             if not GPIO.input(18) and (now - lastbuttontime) > 0.2:
@@ -525,6 +534,15 @@ if USE_BUTTONS:
             elif not GPIO.input(27) and (now - lastbuttontime) > 0.2:
 				lastbuttontime = now
 				sustain = (not sustain)
+				
+				# If sustain was true and now has been toggled to False
+				if(not sustain):
+					# Turn all voices off gracefully.
+					print "turning voices off"
+					for p in sustainplayingnotes:
+						message = [128,p.note,127]
+						MidiCallback(message, None)
+					sustainplayingnotes = [] # clear all sustain notes
 				print "sustain={0}".format(sustain)
 
 
@@ -533,6 +551,11 @@ if USE_BUTTONS:
     ButtonsThread = threading.Thread(target=Buttons)
     ButtonsThread.daemon = True
     ButtonsThread.start()
+
+def turnOff(midiNote):
+    # Turn blow off
+    message = [128,midiNote,127]
+    MidiCallback(message, None)
 
 # Parses instruments from the sample directory and its paths
 def LoadInstruments():
@@ -544,9 +567,41 @@ def LoadInstruments():
 	instruments.append(Instrument("2 mellotron"))
 	instruments.append(Instrument("3 Organ"))
 	instruments.append(Instrument("4 Rhodes"))
-	instruments.append(Instrument("5 Trumpet", globalstart=1))
+	instruments.append(Instrument("5 Trumpet"))
 	instruments.append(Instrument("6 Strings"))
+	instruments.append(Instrument("7 HouseSynth"))
+	instruments.append(Instrument("8 TechnoString"))
+	instruments.append(Instrument("9 Bells"))
+	instruments.append(Instrument("10 Harmonica"))
+	instruments.append(Instrument("11 Voice"))
+	instruments.append(Instrument("12 Trombone"))
+	instruments.append(Instrument("13 BuzzSynth"))
+	
 	print "FINISHED LOADING ALL INSTRUMENTS"
+
+# Identifies the average pressure reading while
+# the sensor is at rest. Each sensor gets its own value
+def CalibrateSensors():
+	global restingSensorValues
+	numTests = 10
+	restingSensorValues = [0] * (CHANNELS_FROM_ADC_ONE + \
+						  CHANNELS_FROM_ADC_TWO)
+	sums = [0] * (CHANNELS_FROM_ADC_ONE + \
+						  CHANNELS_FROM_ADC_TWO)
+	# Find value for each sensor 10 times
+	for i in range(numTests):
+		for ch in range(CHANNELS_FROM_ADC_ONE): # each channel of DAC0
+			sums[ch] += mcp0.read_adc(ch)
+		for ch in range(CHANNELS_FROM_ADC_TWO): # each channel of DAC1
+			sums[ch+CHANNELS_FROM_ADC_ONE] += mcp1.read_adc(ch)
+		time.sleep(0.02)
+	
+	for ch in range(len(restingSensorValues)):
+		# Calculate average over all tests for each sensor
+		restingSensorValues[ch] = sums[ch] / numTests
+	
+	
+	print restingSensorValues
 
 #########################################
 # LOAD FIRST SOUNDBANK
@@ -554,6 +609,7 @@ def LoadInstruments():
 instrum_sel = 0
 LoadInstruments()
 LoadSamples()
+CalibrateSensors()
 
 #########################################
 # MIDI DEVICES DETECTION (MAIN LOOP)
@@ -565,11 +621,11 @@ previous = []
 # We need to select proper blow and draw 
 # thresholds based on resting value read by air pressure sensors. 
 # They all should be values around 512+-1.
-blowTolerance = 30
-drawTolerance = 15 
-restingValue = 530
-blowThresh = restingValue + blowTolerance
-drawThresh = restingValue - drawTolerance
+blowTolerance = 20
+drawTolerance = 15
+sensorCount = CHANNELS_FROM_ADC_ONE + CHANNELS_FROM_ADC_TWO
+blowThresh = map(add, restingSensorValues, [blowTolerance]*sensorCount)
+drawThresh = map(add, restingSensorValues, [-drawTolerance]*sensorCount)
 
 # Which sensors are hooked up and should be read from. Others will be ignored
 activeChannels = [0, 1, 2, 3, 4, 5]
@@ -586,14 +642,13 @@ while True:
     # Read all the ADC channel values in a list.
     values = [0]*10
     #print prevValues
-    # TEMP: Set to 6 to test featues of multisound
-    CHANNELS_FROM_ADC_ONE = 6
+    
     for ch in range(CHANNELS_FROM_ADC_ONE): # each channel of ADC #1
         # (we have 2 ADCs and use 5 channels from each to read the 10 sensors)
         values[ch] = mcp0.read_adc(ch)
                 
     # Print the ADC values.    
-    print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4}'.format(*values))
+    #print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4}'.format(*values))
 
     # For every channel determine whether the channel is making sound
     # and at what velocity
@@ -601,27 +656,25 @@ while True:
         drawNote = drawNotes[ch]
         blowNote = blowNotes[ch]
         
-        if (values[ch] > blowThresh): # BLOW NOTE TRIGGERED
+        if (values[ch] > blowThresh[ch]): # BLOW NOTE TRIGGERED
             if (prevValues[ch]!=1): # Need to start the note
                 prevValues[ch] = 1
                 print "blow note triggered"
-                amount = (values[ch]-blowThresh)/(512.0 - blowTolerance)
-                # Turn draw off
-                message = [128,drawNote,127]
-                MidiCallback(message, None)   
+                amount = (values[ch]-blowThresh[ch])/(512.0 - blowTolerance)
+				
                 # Turn blow on
-                message = [144,blowNote,int(127.0*amount)]
+                #message = [144,blowNote,int(127.0*amount)]
+                message = [144,blowNote,127]
                 MidiCallback(message, None)
-        elif (values[ch] < drawThresh): # DRAW NOTE TRIGGERED
+        elif (values[ch] < drawThresh[ch]): # DRAW NOTE TRIGGERED
             if (prevValues[ch]!=2): # Need to start the note
                 prevValues[ch] = 2
                 print "draw note triggered"
-                amount = (drawThresh - values[ch])/(512.0 - drawTolerance)
-                # Turn blow off
-                message = [128,blowNote,127]
-                MidiCallback(message, None)
+                amount = (drawThresh[ch] - values[ch])/(512.0 - drawTolerance)
+               
 				# Turn draw on
-                message = [144,drawNote,int(127.0*amount)]
+                #message = [144,drawNote,int(127.0*amount)]
+                message = [144,drawNote,int(127)]
                 MidiCallback(message, None)
         elif (prevValues[ch]!=0):
             prevValues[ch] = 0
