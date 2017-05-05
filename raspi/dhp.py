@@ -266,12 +266,14 @@ class waveread(wave.Wave_read):
 #########################################
 class PlayingSound:
 	
-    def __init__(self, sound, note):
+	# sound contained the wav, velocity, and midinote
+    def __init__(self, sound, note, velocity):
         self.sound = sound
         self.pos = 0
         self.fadeoutpos = 0
         self.isfadeout = False
         self.note = note
+        self.velocity = velocity
 
     def fadeout(self, i):
         self.isfadeout = True
@@ -282,14 +284,15 @@ class PlayingSound:
         except:
             pass
 
-
+# This object represents a sound based on a wav file
 class Sound:
 	
-    def __init__(self, filename, midinote, velocity):
+    def __init__(self, filename, midinote):
         wf = waveread(filename)
         self.fname = filename
         self.midinote = midinote
-        self.velocity = velocity
+        
+        # getloops is a function not natively in Wave_read
         if wf.getloops():
             self.loop = wf.getloops()[0][0]
             self.nframes = wf.getloops()[0][1] + 2
@@ -297,18 +300,25 @@ class Sound:
             self.loop = -1
             self.nframes = wf.getnframes()
 
+		# readframes returns up to N string of bytes
+		# getsamplewidth returns sample width in bytes
+		# getnchannels() is 1 for MONO, or 2 for STEREO
         self.data = self.frames2array(wf.readframes(self.nframes), wf.getsampwidth(), wf.getnchannels())
         wf.close()
 
-    def play(self, note):
-        snd = PlayingSound(self, note)
+	# Adds the a PlayingSound instance of the particular note
+	#   to the playingsounds list
+	# Then returns the PlayingSound instance
+    def play(self, note, velocity):
+        snd = PlayingSound(self, note, velocity)
         playingsounds.append(snd)
         return snd
-
+        
+	# Converts byte string frames to 16-bit integers
     def frames2array(self, data, sampwidth, numchan):
-        if sampwidth == 2:
+        if sampwidth == 2: # 16-bit audio frames
             npdata = numpy.fromstring(data, dtype=numpy.int16)
-        elif sampwidth == 3:
+        elif sampwidth == 3: # 24-bit audio frames
             npdata = samplerbox_audio.binary24_to_int16(data, len(data)/3)
         if numchan == 1:
             npdata = numpy.repeat(npdata, 2)
@@ -344,6 +354,7 @@ def MidiCallback(message, time_stamp):
     note = message[1] if len(message) > 1 else None
     midinote = note
     velocity = message[2] if len(message) > 2 else None
+    print "midiCallback velocity =", velocity
     MIDI_ON = 144
     MIDI_OFF = 128
     m = ""
@@ -360,7 +371,20 @@ def MidiCallback(message, time_stamp):
     if messagetype == 9:    # Message says "Note on"
         midinote += globaltranspose
         try:
-            playingnotes.setdefault(midinote, []).append(samples[midinote, velocity].play(midinote))
+			# WHAT THIS COMPLICATED LINE DOES
+			# -------------------------------
+			# setdefault() method returns the value of a key (if the key is in dictionary). 
+			#   If not, it inserts key with a value to the dictionary.
+			#
+			# If playingnotes has the key midinote fetch the val (list)
+			# else playingnotes doesn't have the key, add it with an
+			#   empty list value
+			# The list aquired must be expanded to include
+			#   a new instance of PlayingSound for that specific note
+			
+			# TODO: Issue. We do not have a sample for distinct 
+			#              velocities. 
+            playingnotes.setdefault(midinote, []).append(samples[midinote].play(midinote, velocity))
         except:
             pass
 
@@ -395,8 +419,8 @@ SPEED = numpy.power(2, numpy.arange(0.0, 84.0)/12).astype(numpy.float32)
 
 samples = {}
 playingnotes = {}
-sustainplayingnotes = [] # TODO: May be able to get rid of sustain
-sustain = False # TODO: May be able to get rid of the sustain
+sustainplayingnotes = []
+sustain = False # By default, sustain is off
 playingsounds = []
 
 db = -12 
@@ -450,31 +474,36 @@ def ActuallyLoad():
 		fn = os.path.join(samplesdir, "%s.wav" % properNote1) # proper
 		fn2 = os.path.join(samplesdir, "%d.wav" % midinote) # numeric
 		if os.path.isfile(fn):
-			samples[midinote, 127] = Sound(fn, midinote, 127)
+			samples[midinote] = Sound(fn, midinote)
 		elif os.path.isfile(fn2):
-			samples[midinote, 127] = Sound(fn2, midinote, 127)
+			samples[midinote] = Sound(fn2, midinote)
 		
+	# This is where velocity for each sample are distinguished
     initial_keys = set(samples.keys())
-    for midinote in xrange(128):
-        lastvelocity = None
-        for velocity in xrange(128):
-            if (midinote, velocity) not in initial_keys:
-                samples[midinote, velocity] = lastvelocity
-            else:
-                if not lastvelocity:
-                    for v in xrange(velocity):
-                        samples[midinote, v] = samples[midinote, velocity]
-                lastvelocity = samples[midinote, velocity]
-        if not lastvelocity:
-            for velocity in xrange(128):
-                try:
-                    samples[midinote, velocity] = samples[midinote-1, velocity]
-                except:
-                    pass
+    #for midinote in xrange(128): 		# For every pitch
+        #lastvelocity = None
+        #for velocity in xrange(128): 	# For every velocity
+			## if the tuple is not in the original samples
+            #if (midinote, velocity) not in initial_keys:
+                #samples[midinote, velocity] = lastvelocity
+            #else:
+                #if not lastvelocity:
+                    #for v in xrange(velocity):
+                        #samples[midinote, v] = samples[midinote, velocity]
+                #lastvelocity = samples[midinote, velocity]
+            
+        #if not lastvelocity:
+            #for velocity in xrange(128):
+                #try:
+                    #samples[midinote, velocity] = samples[midinote-1, velocity]
+                #except:
+                    #pass
+    
+    instrumentStr = instruments[instrum_sel].instrumentDirName
     if len(initial_keys) > 0:
-        print 'Instrument loaded: ' + str(instrum_sel)
+        print 'Instrument loaded: ' + instrumentStr
     else:
-        print 'Instrument empty: ' + str(instrum_sel)
+        print 'Instrument empty: ' + instrumentStr
     
 
 #########################################
@@ -540,7 +569,7 @@ if USE_BUTTONS:
 					# Turn all voices off gracefully.
 					print "turning voices off"
 					for p in sustainplayingnotes:
-						message = [128,p.note,127]
+						message = [128,p.note,p.velocity]
 						MidiCallback(message, None)
 					sustainplayingnotes = [] # clear all sustain notes
 				print "sustain={0}".format(sustain)
@@ -552,9 +581,9 @@ if USE_BUTTONS:
     ButtonsThread.daemon = True
     ButtonsThread.start()
 
-def turnOff(midiNote):
+def turnOff(midiNote, velocity):
     # Turn blow off
-    message = [128,midiNote,127]
+    message = [128,midiNote,velocity]
     MidiCallback(message, None)
 
 # Parses instruments from the sample directory and its paths
@@ -582,9 +611,8 @@ def LoadInstruments():
 
 # Identifies the average pressure reading while
 # the sensor is at rest. Each sensor gets its own value
-def CalibrateSensors():
+def CalibrateSensors(numTests=10, sleepValue=0.1):
 	global restingSensorValues
-	numTests = 10
 	restingSensorValues = [0] * (CHANNELS_FROM_ADC_ONE + \
 						  CHANNELS_FROM_ADC_TWO)
 	sums = [0] * (CHANNELS_FROM_ADC_ONE + \
@@ -595,7 +623,7 @@ def CalibrateSensors():
 			sums[ch] += mcp0.read_adc(ch)
 		for ch in range(CHANNELS_FROM_ADC_TWO): # each channel of DAC1
 			sums[ch+CHANNELS_FROM_ADC_ONE] += mcp1.read_adc(ch)
-		time.sleep(0.02)
+		time.sleep(sleepValue)
 	
 	for ch in range(len(restingSensorValues)):
 		# Calculate average over all tests for each sensor
@@ -607,10 +635,10 @@ def CalibrateSensors():
 #########################################
 # LOAD FIRST SOUNDBANK
 #########################################
-instrum_sel = 0
+instrum_sel = 5
 LoadInstruments()
 LoadSamples()
-CalibrateSensors()
+CalibrateSensors(numTests=10, sleepValue=0.1)
 
 #########################################
 # MIDI DEVICES DETECTION (MAIN LOOP)
@@ -622,8 +650,8 @@ previous = []
 # We need to select proper blow and draw 
 # thresholds based on resting value read by air pressure sensors. 
 # They all should be values around 512+-1.
-blowTolerance = 20
-drawTolerance = 15
+blowTolerance = 22
+drawTolerance = 20
 sensorCount = CHANNELS_FROM_ADC_ONE + CHANNELS_FROM_ADC_TWO
 blowThresh = map(add, restingSensorValues, [blowTolerance]*sensorCount)
 drawThresh = map(add, restingSensorValues, [-drawTolerance]*sensorCount)
@@ -634,22 +662,29 @@ activeChannels = [0, 1, 2, 3, 4, 5]
 # 0 for off, -1 for draw, +1 for blow
 prevValues = [0] * len(activeChannels)
 
+blowBoost = 4
+drawBoost = 4
 blowNotes = [36,40,43,48,52,55] 
 drawNotes = [47,50,55,59,62,65] # Based on
+ON = 144
+OFF = 128
 
+message = [ON,50,127]
+
+MidiCallback(message, None)
 
 # This is the infinite loop where all the magic happens!
 while True:
     # Read all the ADC channel values in a list.
     values = [0]*10
     #print prevValues
-    
     for ch in range(CHANNELS_FROM_ADC_ONE): # each channel of ADC #1
         # (we have 2 ADCs and use 5 channels from each to read the 10 sensors)
         values[ch] = mcp0.read_adc(ch)
                 
+
     # Print the ADC values.    
-    #print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4}'.format(*values))
+    print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4}'.format(*values))
 
     # For every channel determine whether the channel is making sound
     # and at what velocity
@@ -660,28 +695,30 @@ while True:
         if (values[ch] > blowThresh[ch]): # BLOW NOTE TRIGGERED
             if (prevValues[ch]!=1): # Need to start the note
                 prevValues[ch] = 1
-                print "blow note triggered"
-                amount = (values[ch]-blowThresh[ch])/(512.0 - blowTolerance)
-				
+                
+                velocity = blowBoost * int(((values[ch]-blowThresh[ch])*127.0)/512.0)
+                if velocity > 127: velocity = 127
+                if velocity < 40: velocity = 40 # More narrow velocity range
                 # Turn blow on
-                #message = [144,blowNote,int(127.0*amount)]
-                message = [144,blowNote,127]
+                message = [ON,blowNote,velocity]
                 MidiCallback(message, None)
         elif (values[ch] < drawThresh[ch]): # DRAW NOTE TRIGGERED
             if (prevValues[ch]!=2): # Need to start the note
                 prevValues[ch] = 2
-                print "draw note triggered"
-                amount = (drawThresh[ch] - values[ch])/(512.0 - drawTolerance)
-               
+                
+                velocity = drawBoost * int(((-values[ch]+drawThresh[ch])*127.0)/512.0)
+                if velocity > 127: velocity = 127 # Loudest
+                if velocity < 40: velocity = 40 # Softest
 				# Turn draw on
-                #message = [144,drawNote,int(127.0*amount)]
-                message = [144,drawNote,int(127)]
+                message = [ON,drawNote,velocity]
                 MidiCallback(message, None)
         elif (prevValues[ch]!=0):
+			# Send off signal to both blow note and draw note
+			# for the specific channel
             prevValues[ch] = 0
-            message = [128,blowNote,127]
+            message = [OFF,blowNote,127]
             MidiCallback(message, None)
-            message = [128,drawNote,127]
+            message = [OFF,drawNote,127]
             MidiCallback(message, None)    
     
     
