@@ -48,6 +48,7 @@ instruments = [] 		  # Will be populated with instrument instances
 restingSensorValues = []  # Will contain the sensor values while at rest
 blowTolerance = 30
 drawTolerance = 15 
+minIssuedVelocity = 50
 NOTES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
 
 
@@ -669,10 +670,6 @@ drawNotes = [47,50,55,59,62,65] # Based on
 ON = 144
 OFF = 128
 
-message = [ON,50,127]
-
-MidiCallback(message, None)
-
 # This is the infinite loop where all the magic happens!
 while True:
     # Read all the ADC channel values in a list.
@@ -684,7 +681,7 @@ while True:
                 
 
     # Print the ADC values.    
-    print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4}'.format(*values))
+    #print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4}'.format(*values))
 
     # For every channel determine whether the channel is making sound
     # and at what velocity
@@ -698,7 +695,7 @@ while True:
                 
                 velocity = blowBoost * int(((values[ch]-blowThresh[ch])*127.0)/512.0)
                 if velocity > 127: velocity = 127
-                if velocity < 40: velocity = 40 # More narrow velocity range
+                if velocity < minIssuedVelocity: velocity = minIssuedVelocity # More narrow velocity range
                 # Turn blow on
                 message = [ON,blowNote,velocity]
                 MidiCallback(message, None)
