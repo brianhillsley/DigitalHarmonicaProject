@@ -15,6 +15,8 @@ from chunk import Chunk
 import struct
 import rtmidi_python as rtmidi
 import samplerbox_audio
+import alsaaudio # for extra volume control
+from subprocess import call # for extra volume control
 
 # Adafruit_MCP3008 is the 10-bit 8-channel DAC we are using to access 
 # the air pressure sensors. These imports are needed to allow us to use 
@@ -36,10 +38,17 @@ import Adafruit_MCP3008
 #		 GPIO23
 #		 GPIO24
 #		 GPIO27 (sustain on/off) (double click for silence)
+#
+#  3. For the purpose of the digital harmonica, VELOCITY, is solely
+#     adjusting the volume of each note independently. 
+#	  Velocity is in a sense, the local volume for midi notes.
+#     
+#
 
 AUDIO_DEVICE_ID = 2
 SAMPLES_DIR = "samples" # Where the instrument folders live
 USE_BUTTONS = True
+USE_SERIALPORT_MIDI = False
 MAX_NUM_VOICES = 5
 NUM_INSTRUMENTS = 0 # Value will be altered when Instruments are parsed
 CHANNELS_FROM_ADC_ONE = 6
@@ -582,6 +591,30 @@ if USE_BUTTONS:
     ButtonsThread.daemon = True
     ButtonsThread.start()
 
+if USE_SERIALPORT_MIDI:
+    import serial
+
+    ser = serial.Serial('/dev/ttyAMA0', baudrate=38400)       # see hack in /boot/cmline.txt : 38400 is 31250 baud for MIDI!
+
+    def MidiSerialCallback():
+        message = [0, 0, 0]
+        while True:
+            i = 0
+            while i < 3:
+                data = ord(ser.read(1))  # read a byte
+                if data >> 7 != 0:
+                    i = 0      # status byte!   this is the beginning of a midi message: http://www.midi.org/techspecs/midimessages.php
+                message[i] = data
+                i += 1
+                if i == 2 and message[0] >> 4 == 12:  # program change: don't wait for a third byte: it has only 2 bytes
+                    message[2] = 0
+                    i = 3
+            MidiCallback(message, None)
+
+    MidiThread = threading.Thread(target=MidiSerialCallback)
+    MidiThread.daemon = True
+    MidiThread.start()
+
 def turnOff(midiNote, velocity):
     # Turn blow off
     message = [128,midiNote,velocity]
@@ -606,6 +639,9 @@ def LoadInstruments():
 	instruments.append(Instrument("11 Voice"))
 	instruments.append(Instrument("12 Trombone"))
 	instruments.append(Instrument("13 BuzzSynth"))
+	instruments.append(Instrument("14 SynthOrchestra"))
+	#instruments.append(Instrument("15 RhodesChords"))
+	#instruments.append(Instrument("16 SynthOrchestra"))
 	NUM_INSTRUMENTS = len(instruments)
 	
 	print "FINISHED LOADING ALL",  NUM_INSTRUMENTS, "INSTRUMENTS"
@@ -633,10 +669,16 @@ def CalibrateSensors(numTests=10, sleepValue=0.1):
 	
 	print restingSensorValues
 
+# Sets the raspi system volume.
+def SetSystemVolume(vol):
+    call(["amixer", "-D", "pulse", "sset", "Master", str(vol)+"%"])
+
+
 #########################################
 # LOAD FIRST SOUNDBANK
 #########################################
 instrum_sel = 5
+SetSystemVolume(98)
 LoadInstruments()
 LoadSamples()
 CalibrateSensors(numTests=10, sleepValue=0.1)
@@ -663,6 +705,7 @@ activeChannels = [0, 1, 2, 3, 4, 5]
 # 0 for off, -1 for draw, +1 for blow
 prevValues = [0] * len(activeChannels)
 
+# draw & blow boost are essentially scaling up the detected velocity
 blowBoost = 4
 drawBoost = 4
 blowNotes = [36,40,43,48,52,55] 
@@ -694,7 +737,7 @@ while True:
                 prevValues[ch] = 1
                 
                 velocity = blowBoost * int(((values[ch]-blowThresh[ch])*127.0)/512.0)
-                if velocity > 127: velocity = 127
+                if velocity > 127: velocity = 127 # max velocity
                 if velocity < minIssuedVelocity: velocity = minIssuedVelocity # More narrow velocity range
                 # Turn blow on
                 message = [ON,blowNote,velocity]
@@ -705,7 +748,7 @@ while True:
                 
                 velocity = drawBoost * int(((-values[ch]+drawThresh[ch])*127.0)/512.0)
                 if velocity > 127: velocity = 127 # Loudest
-                if velocity < 40: velocity = 40 # Softest
+                if velocity < minIssuedVelocity: velocity = minIssuedVelocity # Softest
 				# Turn draw on
                 message = [ON,drawNote,velocity]
                 MidiCallback(message, None)
