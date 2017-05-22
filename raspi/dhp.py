@@ -15,7 +15,6 @@ from chunk import Chunk
 import struct
 import rtmidi_python as rtmidi
 import samplerbox_audio
-import alsaaudio # for extra volume control
 from subprocess import call # for extra volume control
 
 # Adafruit_MCP3008 is the 10-bit 8-channel DAC we are using to access 
@@ -33,8 +32,8 @@ import Adafruit_MCP3008
 #        C7 (2093 Hz) has a midivalue of 84
 #
 #  2. Five buttons on-board the harmonica + On/Off Switch
-#        GPIO16
-#		 GPIO17
+#        GPIO17
+#		 GPIO18
 #		 GPIO23
 #		 GPIO24
 #		 GPIO27 (sustain on/off) (double click for silence)
@@ -51,8 +50,8 @@ USE_BUTTONS = True
 USE_SERIALPORT_MIDI = False
 MAX_NUM_VOICES = 5
 NUM_INSTRUMENTS = 0 # Value will be altered when Instruments are parsed
-CHANNELS_FROM_ADC_ONE = 6
-CHANNELS_FROM_ADC_TWO = 0 # Unimplemented currently
+CHANNELS_FROM_ADC_ONE = 5
+CHANNELS_FROM_ADC_TWO = 5 # Unimplemented currently
 instruments = [] 		  # Will be populated with instrument instances
 restingSensorValues = []  # Will contain the sensor values while at rest
 blowTolerance = 30
@@ -64,8 +63,8 @@ NOTES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
 # Hardware SPI configuration:
 SPI_PORT   = 0
 SPI_DEVICE0 = 0; SPI_DEVICE1 = 1
-mcp0 = Adafruit_MCP3008.MCP3008(spi=SPI.SpiDev(SPI_PORT, SPI_DEVICE0))
-mcp1 = Adafruit_MCP3008.MCP3008(spi=SPI.SpiDev(SPI_PORT, SPI_DEVICE1))
+mcp0 = Adafruit_MCP3008.MCP3008(spi=SPI.SpiDev(SPI_PORT, SPI_DEVICE1))
+mcp1 = Adafruit_MCP3008.MCP3008(spi=SPI.SpiDev(SPI_PORT, SPI_DEVICE0))
 
 class Sample():
     
@@ -700,16 +699,21 @@ blowThresh = map(add, restingSensorValues, [blowTolerance]*sensorCount)
 drawThresh = map(add, restingSensorValues, [-drawTolerance]*sensorCount)
 
 # Which sensors are hooked up and should be read from. Others will be ignored
-activeChannels = [0, 1, 2, 3, 4, 5]
+activeChannels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+channelsFromADC1 = [0,1,2,3,4]
+channelsFromADC2 = [0,1,2,3,4]
 
 # 0 for off, -1 for draw, +1 for blow
-prevValues = [0] * len(activeChannels)
+prevValues = [0] * (CHANNELS_FROM_ADC_ONE+CHANNELS_FROM_ADC_TWO)
 
 # draw & blow boost are essentially scaling up the detected velocity
 blowBoost = 4
 drawBoost = 4
-blowNotes = [36,40,43,48,52,55] 
-drawNotes = [47,50,55,59,62,65] # Based on
+# C E G C E G C E G C
+blowNotes = [36,40,43,48,52,55,60,64,67,72] 
+# B D F
+drawNotes = [47,50,53,59,62,65,71,74,77,83] # Based on
 ON = 144
 OFF = 128
 
@@ -718,10 +722,12 @@ while True:
     # Read all the ADC channel values in a list.
     values = [0]*10
     #print prevValues
-    for ch in range(CHANNELS_FROM_ADC_ONE): # each channel of ADC #1
+    for ch in channelsFromADC1: # each channel of ADC #1
         # (we have 2 ADCs and use 5 channels from each to read the 10 sensors)
         values[ch] = mcp0.read_adc(ch)
-                
+    for ch in channelsFromADC2: # each channel of ADC #1
+        # (we have 2 ADCs and use 5 channels from each to read the 10 sensors)
+        values[ch+5] = mcp1.read_adc(ch)
 
     # Print the ADC values.    
     #print('| {0:>4} | {1:>4} | {2:>4} | {3:>4} | {4:>4} | {5:>4} | {6:>4} | {7:>4} | {8:>4} | {9:>4}'.format(*values))
